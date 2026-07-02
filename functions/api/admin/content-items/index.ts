@@ -33,20 +33,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
               content_sources.url AS source_url,
               articles.id AS linked_article_id,
               articles.slug AS linked_article_slug,
+              articles.title AS linked_article_title,
+              articles.content AS linked_article_content,
               articles.published AS linked_article_published
        FROM content_items
        JOIN content_sources ON content_sources.id = content_items.source_id
        LEFT JOIN articles ON articles.id = content_items.article_id
-        AND (
-          instr(articles.content, '<!-- htools:content-item:' || content_items.id || ' -->') > 0
-          OR (
-            articles.title = content_items.title
-            AND (
-              content_items.url = ''
-              OR instr(articles.content, content_items.url) > 0
-            )
-          )
-        )
        ${whereClause}
        ORDER BY COALESCE(content_items.published_at, content_items.updated_at, content_items.created_at) DESC
        LIMIT 300`

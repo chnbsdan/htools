@@ -121,7 +121,7 @@ export const zh: Messages = {
     description: "换个分类，或者试试更短的搜索词。"
   },
   footer: {
-    version: "HTools v1.0.0",
+    version: "HTools v1.0.1",
     d1: "Cloudflare D1"
   },
   submit: {

@@ -6866,6 +6866,7 @@ function AdminApp({
   const lastGitHubMetadataUrl = useRef("");
   const lastAppliedGitHubMetadata = useRef<AppliedGitHubMetadata | null>(null);
   const githubMetadataRequestId = useRef(0);
+  const convertingItemRef = useRef<string | null>(null);
   const sidebarAnimationTimer = useRef<number | null>(null);
   const adminStatusTimer = useRef<number | null>(null);
   const adminStatusSequence = useRef(0);
@@ -6880,6 +6881,7 @@ function AdminApp({
   const articleText = getArticleText(locale);
   const contentText = getContentFlowText(locale);
   const categoryTopLabel = getAdminCategoryTopLabel(t);
+  const isConvertingContentItem = Boolean(convertingItemId);
   const showAdminToolSkeletons = useLoadingSkeleton(isLoadingTools && !hasLoadedTools);
   const showAdminArticleSkeletons = useLoadingSkeleton(
     isLoadingArticles && !hasLoadedArticles
@@ -8246,7 +8248,7 @@ function AdminApp({
   }
 
   function openConvertContentItem(item: ContentItem) {
-    if (item.articleId) {
+    if (item.articleId || convertingItemRef.current) {
       return;
     }
 
@@ -8267,6 +8269,10 @@ function AdminApp({
     categoryValue: string,
     publishMode: ConvertPublishMode
   ) {
+    if (convertingItemRef.current) {
+      return;
+    }
+
     const category = normalizeAdminCategoryValue(categoryValue);
 
     if (!category || isAllCategoryValue(category) || isFeaturedCategoryValue(category)) {
@@ -8274,6 +8280,7 @@ function AdminApp({
       return;
     }
 
+    convertingItemRef.current = item.id;
     setConvertingItemId(item.id);
     setStatus("");
 
@@ -8309,6 +8316,7 @@ function AdminApp({
     } catch (error) {
       setStatus(error instanceof Error ? error.message : t.status.saveFailed);
     } finally {
+      convertingItemRef.current = null;
       setConvertingItemId(null);
     }
   }
@@ -8948,8 +8956,8 @@ function AdminApp({
               contentSources={visibleContentSources}
               contentText={contentText}
               contentCategoryItemCount={contentItemsForCategory.length}
-              convertingItemId={convertingItemId}
               hasLoadedContent={hasLoadedContent}
+              isConvertLocked={isConvertingContentItem}
               isLoadingContent={isLoadingContent}
               onConvertItem={openConvertContentItem}
               onDeleteSource={(source) => setPendingDeleteContentSource(source)}
@@ -9636,7 +9644,7 @@ function AdminApp({
           title={contentText.convertCategoryTitle}
           closeLabel={t.actions.close}
           onClose={() => {
-            if (convertingItemId !== pendingConvertItem.id) {
+            if (!isConvertingContentItem) {
               setPendingConvertItem(null);
               setConvertArticleCategory("");
               setConvertPublishMode("published");
@@ -9647,7 +9655,7 @@ function AdminApp({
             <>
               <button
                 className="ghost-button"
-                disabled={convertingItemId === pendingConvertItem.id}
+                disabled={isConvertingContentItem}
                 type="button"
                 onClick={() => {
                   setPendingConvertItem(null);
@@ -9659,7 +9667,7 @@ function AdminApp({
               </button>
               <button
                 className="primary-button"
-                disabled={convertingItemId === pendingConvertItem.id}
+                disabled={isConvertingContentItem}
                 type="button"
                 onClick={() =>
                   void handleConvertContentItem(
@@ -9706,7 +9714,7 @@ function AdminApp({
                   className={`article-publish-toggle ${
                     convertPublishMode === "published" ? "is-active" : ""
                   }`}
-                  disabled={convertingItemId === pendingConvertItem.id}
+                  disabled={isConvertingContentItem}
                   type="button"
                   aria-pressed={convertPublishMode === "published"}
                   onClick={() => {
@@ -9724,7 +9732,7 @@ function AdminApp({
                   className={`article-publish-toggle ${
                     convertPublishMode === "draft" ? "is-active" : ""
                   }`}
-                  disabled={convertingItemId === pendingConvertItem.id}
+                  disabled={isConvertingContentItem}
                   type="button"
                   aria-pressed={convertPublishMode === "draft"}
                   onClick={() => {
@@ -9978,8 +9986,8 @@ function AdminContentFlowPanel({
   contentSources,
   contentText,
   contentCategoryItemCount,
-  convertingItemId,
   hasLoadedContent,
+  isConvertLocked,
   isLoadingContent,
   onAddSource,
   onConvertItem,
@@ -9996,8 +10004,8 @@ function AdminContentFlowPanel({
   contentSources: ContentSource[];
   contentText: ReturnType<typeof getContentFlowText>;
   contentCategoryItemCount: number;
-  convertingItemId: string | null;
   hasLoadedContent: boolean;
+  isConvertLocked: boolean;
   isLoadingContent: boolean;
   onAddSource: () => void;
   onConvertItem: (item: ContentItem) => void;
@@ -10065,7 +10073,7 @@ function AdminContentFlowPanel({
             {visibleContentItems.map((item) => (
               <ContentItemCard
                 contentText={contentText}
-                isConverting={convertingItemId === item.id}
+                isConvertLocked={isConvertLocked}
                 item={item}
                 key={item.id}
                 onConvert={() => onConvertItem(item)}
@@ -10161,12 +10169,12 @@ function ContentSourceButton({
 
 function ContentItemCard({
   contentText,
-  isConverting,
+  isConvertLocked,
   item,
   onConvert
 }: {
   contentText: ReturnType<typeof getContentFlowText>;
-  isConverting: boolean;
+  isConvertLocked: boolean;
   item: ContentItem;
   onConvert: () => void;
 }) {
@@ -10227,7 +10235,7 @@ function ContentItemCard({
         </a>
         <button
           className="primary-button"
-          disabled={Boolean(item.articleId) || isConverting}
+          disabled={Boolean(item.articleId) || isConvertLocked}
           type="button"
           onClick={onConvert}
         >

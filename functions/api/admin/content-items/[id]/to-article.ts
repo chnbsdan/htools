@@ -60,7 +60,6 @@ export const onRequestPost: PagesFunction<Env> = async ({
     }
 
     const now = new Date().toISOString();
-    const baseSlug = createContentArticleSlug(item);
     const articleTitle = normalizeFeedItemTitle(
       item.title,
       item.content || item.summary,
@@ -101,11 +100,11 @@ export const onRequestPost: PagesFunction<Env> = async ({
 
     const existingArticle = await db.prepare(
       `SELECT * FROM articles
-       WHERE instr(content, ?) > 0 OR (slug = ? AND title = ?)
+       WHERE instr(content, ?) > 0
        ORDER BY updated_at DESC
        LIMIT 1`
     )
-      .bind(createContentItemMarker(item.id), baseSlug, articleTitle)
+      .bind(createContentItemMarker(item.id))
       .first<ArticleRow>();
 
     if (existingArticle) {
@@ -167,10 +166,6 @@ export const onRequestPost: PagesFunction<Env> = async ({
     return json({ error: message }, { status: 400 });
   }
 };
-
-function createContentArticleSlug(item: ContentItemRow) {
-  return formatContentTimestampSlug(getContentSlugDate(item));
-}
 
 async function createUniqueContentArticleSlug(
   db: D1Database,

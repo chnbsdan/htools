@@ -166,6 +166,8 @@ export type ContentItemRow = {
   article_id: string | null;
   linked_article_id?: string | null;
   linked_article_slug?: string | null;
+  linked_article_title?: string | null;
+  linked_article_content?: string | null;
   linked_article_published?: number | null;
 };
 
@@ -541,13 +543,6 @@ export function contentSourceFromRow(row: ContentSourceRow) {
 }
 
 export function contentItemFromRow(row: ContentItemRow) {
-  const articleId =
-    row.linked_article_id === undefined ? row.article_id : row.linked_article_id;
-  const articleSlug = row.linked_article_slug ?? "";
-  const articlePublished =
-    row.linked_article_published === undefined
-      ? null
-      : row.linked_article_published === 1;
   const title = normalizeFeedItemTitle(row.title, row.content, row.summary);
   const summary = normalizeFeedItemSummary(row.summary, row.content, title);
   const tags = normalizeFeedItemTags(
@@ -556,6 +551,18 @@ export function contentItemFromRow(row: ContentItemRow) {
     row.summary,
     row.content
   );
+  const hasLinkedArticle = isValidLinkedContentItemArticle(row, title);
+  const articleId =
+    row.linked_article_id === undefined
+      ? row.article_id
+      : hasLinkedArticle
+        ? row.linked_article_id
+        : null;
+  const articleSlug = hasLinkedArticle ? (row.linked_article_slug ?? "") : "";
+  const articlePublished =
+    hasLinkedArticle && row.linked_article_published !== undefined
+      ? row.linked_article_published === 1
+      : null;
 
   return {
     id: row.id,
@@ -579,6 +586,34 @@ export function contentItemFromRow(row: ContentItemRow) {
     articleSlug,
     articlePublished
   };
+}
+
+function isValidLinkedContentItemArticle(row: ContentItemRow, title: string) {
+  if (row.linked_article_id === undefined) {
+    return Boolean(row.article_id);
+  }
+
+  if (!row.linked_article_id || !row.linked_article_slug) {
+    return false;
+  }
+
+  const articleContent = row.linked_article_content ?? "";
+
+  if (articleContent.includes(createContentItemMarker(row.id))) {
+    return true;
+  }
+
+  if ((row.linked_article_title ?? "").trim() !== title.trim()) {
+    return false;
+  }
+
+  const itemUrl = row.url.trim();
+
+  return !itemUrl || articleContent.includes(itemUrl);
+}
+
+function createContentItemMarker(id: string) {
+  return `<!-- htools:content-item:${id} -->`;
 }
 
 export async function getDatabase(env: Env) {
@@ -934,20 +969,12 @@ export async function syncContentSource(db: D1Database, sourceId: string) {
             content_sources.url AS source_url,
             articles.id AS linked_article_id,
             articles.slug AS linked_article_slug,
+            articles.title AS linked_article_title,
+            articles.content AS linked_article_content,
             articles.published AS linked_article_published
      FROM content_items
      JOIN content_sources ON content_sources.id = content_items.source_id
      LEFT JOIN articles ON articles.id = content_items.article_id
-      AND (
-        instr(articles.content, '<!-- htools:content-item:' || content_items.id || ' -->') > 0
-        OR (
-          articles.title = content_items.title
-          AND (
-            content_items.url = ''
-            OR instr(articles.content, content_items.url) > 0
-          )
-        )
-      )
      WHERE source_id = ?
      ORDER BY COALESCE(content_items.published_at, content_items.updated_at, content_items.created_at) DESC
      LIMIT 50`

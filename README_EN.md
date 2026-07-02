@@ -111,4 +111,4 @@ https://your-domain.com/api/github/callback
 
 ## Version
 
-Current version: `HTools v1.0.0`
+Current version: `HTools v1.0.1`
