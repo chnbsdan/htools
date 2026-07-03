@@ -85,6 +85,7 @@ export const zh: Messages = {
     featured: "精选",
     login: "登录",
     visit: "访问",
+    demo: "演示",
     viewDetails: "查看详情",
     openAdmin: "打开后台",
     close: "关闭",

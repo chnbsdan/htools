@@ -90,6 +90,7 @@ export type Messages = {
     featured: string;
     login: string;
     visit: string;
+    demo: string;
     viewDetails: string;
     openAdmin: string;
     close: string;

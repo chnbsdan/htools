@@ -67,9 +67,11 @@ import {
 import {
   ChangeEvent,
   CSSProperties,
+  DragEvent as ReactDragEvent,
   FormEvent,
   KeyboardEvent as ReactKeyboardEvent,
   MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
   ReactNode,
   Suspense,
   createContext,
@@ -215,6 +217,10 @@ const initialArticleForm: ArticleInput = {
   published: true,
   publishedAt: ""
 };
+
+function preventCardDrag(event: ReactDragEvent<HTMLElement>) {
+  event.preventDefault();
+}
 
 const initialContentSourceForm: ContentSourceInput = {
   title: "",
@@ -2177,14 +2183,29 @@ function isGeneratedScreenshotUrl(url: string) {
   }
 }
 
-function createToolPreviewSource(tool: Tool) {
-  const githubPreview = createGitHubOpenGraphImageUrl(tool.url);
+function isGitHubOpenGraphImageUrl(url: string) {
+  try {
+    return new URL(url).hostname.toLowerCase() === "opengraph.githubassets.com";
+  } catch {
+    return false;
+  }
+}
 
-  if (githubPreview && (!tool.image || isGeneratedScreenshotUrl(tool.image))) {
-    return githubPreview;
+function createToolPreviewSource(tool: Tool) {
+  if (usesGitHubOpenGraphPreview(tool)) {
+    return createGitHubOpenGraphImageUrl(tool.url);
   }
 
   return tool.image || createImageFromUrl(tool.url);
+}
+
+function usesGitHubOpenGraphPreview(tool: Tool) {
+  return Boolean(
+    createGitHubOpenGraphImageUrl(tool.url) &&
+      (!tool.image ||
+        isGeneratedScreenshotUrl(tool.image) ||
+        isGitHubOpenGraphImageUrl(tool.image))
+  );
 }
 
 function normalizeProxyBaseUrl(value: string) {
@@ -4252,9 +4273,92 @@ function ArticleListItem({
   const displayDate = formatAdminDate(article.published_at ?? article.updated_at);
   const displayTitle = getArticleDisplayTitle(article);
   const displaySummary = cleanArticleDisplayText(article.summary);
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressResetTimerRef = useRef<number | null>(null);
+  const ignoreNextClickRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current !== null) {
+        window.clearTimeout(longPressTimerRef.current);
+      }
+      if (longPressResetTimerRef.current !== null) {
+        window.clearTimeout(longPressResetTimerRef.current);
+      }
+    };
+  }, []);
+
+  function clearLongPressTimer() {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
+
+  function scheduleLongPressReset() {
+    if (!ignoreNextClickRef.current) {
+      return;
+    }
+
+    if (longPressResetTimerRef.current !== null) {
+      window.clearTimeout(longPressResetTimerRef.current);
+    }
+
+    longPressResetTimerRef.current = window.setTimeout(() => {
+      ignoreNextClickRef.current = false;
+      longPressResetTimerRef.current = null;
+    }, 700);
+  }
+
+  function handlePointerDown(event: ReactPointerEvent<HTMLAnchorElement>) {
+    if (event.pointerType === "mouse") {
+      return;
+    }
+
+    clearLongPressTimer();
+    ignoreNextClickRef.current = false;
+    longPressTimerRef.current = window.setTimeout(() => {
+      ignoreNextClickRef.current = true;
+    }, 520);
+  }
+
+  function handlePointerEnd() {
+    clearLongPressTimer();
+    scheduleLongPressReset();
+  }
+
+  function handleArticleClick(event: ReactMouseEvent<HTMLAnchorElement>) {
+    if (!ignoreNextClickRef.current) {
+      return;
+    }
+
+    event.preventDefault();
+    ignoreNextClickRef.current = false;
+  }
+
+  function handleArticleContextMenu(event: ReactMouseEvent<HTMLAnchorElement>) {
+    if (!ignoreNextClickRef.current) {
+      return;
+    }
+
+    event.preventDefault();
+    clearLongPressTimer();
+    scheduleLongPressReset();
+  }
 
   return (
-    <a className="article-item" href={createArticleHref(article.slug)}>
+    <a
+      className="article-item"
+      href={createArticleHref(article.slug)}
+      draggable={false}
+      onClick={handleArticleClick}
+      onContextMenu={handleArticleContextMenu}
+      onDragStart={preventCardDrag}
+      onPointerCancel={handlePointerEnd}
+      onPointerDown={handlePointerDown}
+      onPointerLeave={handlePointerEnd}
+      onPointerUp={handlePointerEnd}
+    >
       <div>
         <span className="article-date">
           <Clock3 size={16} />
@@ -5582,6 +5686,22 @@ function getToolDisplayTags(tool: Tool) {
   );
 }
 
+function getToolDemoHref(tool: Tool) {
+  const demoUrl = normalizeHttpUrlInput(tool.demoUrl);
+
+  if (!demoUrl || !isValidHttpUrl(demoUrl)) {
+    return "";
+  }
+
+  const officialUrl = normalizeHttpUrlInput(tool.url);
+
+  if (officialUrl && normalizeUrlForImport(demoUrl) === normalizeUrlForImport(officialUrl)) {
+    return "";
+  }
+
+  return demoUrl;
+}
+
 function CompactTagRow({ tags, visibleCount: maxVisibleCount }: { tags: string[]; visibleCount?: number }) {
   const rowRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
@@ -5693,15 +5813,19 @@ function CompactTagRow({ tags, visibleCount: maxVisibleCount }: { tags: string[]
 function ToolCardSkeleton() {
   return (
     <div className="tool-card skeleton-card" aria-hidden="true">
-      <div className="skeleton-shimmer skeleton-card-preview" />
+      <div className="tool-card-media">
+        <div className="skeleton-shimmer skeleton-card-preview" />
+      </div>
       <div className="skeleton-card-body">
         <span className="skeleton-shimmer skeleton-line is-medium" />
         <span className="skeleton-shimmer skeleton-line is-long" />
         <span className="skeleton-shimmer skeleton-line is-short" />
-        <div className="skeleton-tag-row">
-          <span className="skeleton-shimmer skeleton-tag" />
-          <span className="skeleton-shimmer skeleton-tag" />
-          <span className="skeleton-shimmer skeleton-tag is-small" />
+        <div className="skeleton-card-footer">
+          <div className="skeleton-tag-row">
+            <span className="skeleton-shimmer skeleton-tag" />
+            <span className="skeleton-shimmer skeleton-tag" />
+            <span className="skeleton-shimmer skeleton-tag is-small" />
+          </div>
         </div>
       </div>
     </div>
@@ -5733,6 +5857,139 @@ function PaginationSkeleton() {
   );
 }
 
+function ToolPreviewActions({
+  demoHref,
+  isGitHubPreview,
+  priority,
+  proxySettings,
+  t,
+  tool
+}: {
+  demoHref: string;
+  isGitHubPreview: boolean;
+  priority?: boolean;
+  proxySettings: ProxySettings;
+  t: Messages;
+  tool: Tool;
+}) {
+  const hasDemo = Boolean(demoHref);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const lastPointerTypeRef = useRef("");
+  const [isTouchSplitActive, setIsTouchSplitActive] = useState(false);
+
+  useEffect(() => {
+    if (!isTouchSplitActive) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const root = rootRef.current;
+
+      if (root && !root.contains(event.target as Node)) {
+        setIsTouchSplitActive(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", handlePointerDown, true);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown, true);
+    };
+  }, [isTouchSplitActive]);
+
+  useEffect(() => {
+    setIsTouchSplitActive(false);
+  }, [demoHref, tool.url]);
+
+  function handlePreviewPointerDown(event: ReactPointerEvent<HTMLAnchorElement>) {
+    lastPointerTypeRef.current = event.pointerType;
+  }
+
+  function handlePreviewActionClick(event: ReactMouseEvent<HTMLAnchorElement>) {
+    if (!hasDemo) {
+      return;
+    }
+
+    if (event.detail === 0) {
+      return;
+    }
+
+    const pointerType = lastPointerTypeRef.current;
+    const isCoarsePointer =
+      pointerType === "" &&
+      typeof window !== "undefined" &&
+      window.matchMedia("(hover: none), (pointer: coarse)").matches;
+    const isTouchPointer =
+      pointerType === "touch" || pointerType === "pen" || isCoarsePointer;
+
+    if (isTouchPointer && !isTouchSplitActive) {
+      event.preventDefault();
+      setIsTouchSplitActive(true);
+    }
+  }
+
+  return (
+    <div
+      className={`tool-preview-shell ${hasDemo ? "has-demo" : ""} ${
+        isTouchSplitActive ? "is-touch-active" : ""
+      }`}
+      ref={rootRef}
+    >
+      <div className={`tool-image-link ${isGitHubPreview ? "is-github-preview" : ""}`}>
+        <ToolPreviewImage priority={priority} proxySettings={proxySettings} tool={tool} t={t} />
+        <span
+          className={`tool-card-overlay ${hasDemo ? "is-split" : ""}`}
+          aria-hidden="true"
+        >
+          {hasDemo ? (
+            <>
+              <span className="tool-card-overlay-segment">
+                {t.actions.visit}
+                <ArrowUpRight size={20} />
+              </span>
+              <span className="tool-card-overlay-segment">
+                {t.actions.demo}
+                <ArrowUpRight size={20} />
+              </span>
+            </>
+          ) : (
+            <>
+              {t.actions.viewDetails}
+              <ArrowUpRight size={24} />
+            </>
+          )}
+        </span>
+      </div>
+      <div className={`tool-preview-action-grid ${hasDemo ? "has-demo" : ""}`}>
+        <a
+          className="tool-preview-action is-project"
+          href={tool.url}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`${t.actions.visit}: ${tool.name}`}
+          draggable={false}
+          onDragStart={preventCardDrag}
+          onPointerDown={handlePreviewPointerDown}
+          onClick={handlePreviewActionClick}
+        />
+        {hasDemo ? (
+          <a
+            className="tool-preview-action is-demo"
+            href={demoHref}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={`${t.form.demoUrl}: ${tool.name}`}
+            draggable={false}
+            onDragStart={preventCardDrag}
+            onPointerDown={handlePreviewPointerDown}
+            onClick={handlePreviewActionClick}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function ToolPreviewImage({
   priority = false,
   proxySettings,
@@ -5745,6 +6002,7 @@ function ToolPreviewImage({
   tool: Tool;
 }) {
   const source = proxifyUrl(createToolPreviewSource(tool), proxySettings);
+  const isGitHubPreview = usesGitHubOpenGraphPreview(tool);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -5778,13 +6036,17 @@ function ToolPreviewImage({
         <small>{tool.name}</small>
       </span>
       <img
-        className={`tool-image ${loaded ? "is-loaded" : ""}`}
+        className={`tool-image ${isGitHubPreview ? "is-github-preview" : ""} ${
+          loaded ? "is-loaded" : ""
+        }`}
         ref={imageRef}
         src={source}
         alt={t.tool.previewAlt(tool.name)}
+        draggable={false}
         loading={priority ? "eager" : "lazy"}
         decoding="async"
         fetchPriority={priority ? "high" : "auto"}
+        onDragStart={preventCardDrag}
         onLoad={() => setLoaded(true)}
         onError={() => setFailed(true)}
       />
@@ -5803,27 +6065,40 @@ function HomeToolCard({
   tool: Tool;
   t: Messages;
 }) {
+  const demoHref = getToolDemoHref(tool);
+  const isGitHubPreview = usesGitHubOpenGraphPreview(tool);
+
   return (
-    <a
-      className="tool-card home-tool-card"
-      href={tool.url}
-      target="_blank"
-      rel="noreferrer"
-      aria-label={`${t.actions.viewDetails}: ${tool.name}`}
-    >
-      <span className="tool-image-link">
-        <ToolPreviewImage priority={priority} proxySettings={proxySettings} tool={tool} t={t} />
-        <span className="tool-card-overlay">
-          {t.actions.viewDetails}
-          <ArrowUpRight size={24} />
-        </span>
-      </span>
-      <div className="tool-body">
-        <h3>{tool.name}</h3>
-        <p>{tool.description}</p>
-        <CompactTagRow tags={getToolDisplayTags(tool)} />
+    <article className="tool-card home-tool-card">
+      <div className="tool-card-media">
+        <ToolPreviewActions
+          demoHref={demoHref}
+          isGitHubPreview={isGitHubPreview}
+          priority={priority}
+          proxySettings={proxySettings}
+          tool={tool}
+          t={t}
+        />
       </div>
-    </a>
+      <div className="tool-body">
+        <h3>
+          <a
+            className="tool-title-link"
+            href={tool.url}
+            target="_blank"
+            rel="noreferrer"
+            draggable={false}
+            onDragStart={preventCardDrag}
+          >
+            {tool.name}
+          </a>
+        </h3>
+        <p>{tool.description}</p>
+        <div className="tool-card-footer">
+          <CompactTagRow tags={getToolDisplayTags(tool)} />
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -6722,24 +6997,35 @@ function ToolCard({
   tool: Tool;
   t: Messages;
 }) {
+  const demoHref = getToolDemoHref(tool);
+  const isGitHubPreview = usesGitHubOpenGraphPreview(tool);
+
   return (
-    <a
-      className="tool-card"
-      href={tool.url}
-      target="_blank"
-      rel="noreferrer"
-      aria-label={`${t.actions.viewDetails}: ${tool.name}`}
-    >
-      <span className="tool-image-link">
-        <ToolPreviewImage priority={priority} proxySettings={proxySettings} tool={tool} t={t} />
-        <span className="tool-card-overlay">
-          {t.actions.viewDetails}
-          <ArrowUpRight size={24} />
-        </span>
-      </span>
+    <article className="tool-card">
+      <div className="tool-card-media">
+        <ToolPreviewActions
+          demoHref={demoHref}
+          isGitHubPreview={isGitHubPreview}
+          priority={priority}
+          proxySettings={proxySettings}
+          tool={tool}
+          t={t}
+        />
+      </div>
       <div className="tool-body">
         <div className="tool-heading">
-          <h2>{tool.name}</h2>
+          <h2>
+            <a
+              className="tool-title-link"
+              href={tool.url}
+              target="_blank"
+              rel="noreferrer"
+              draggable={false}
+              onDragStart={preventCardDrag}
+            >
+              {tool.name}
+            </a>
+          </h2>
           {tool.featured ? (
             <span className="featured-badge">
               <Star size={13} fill="currentColor" />
@@ -6748,9 +7034,11 @@ function ToolCard({
           ) : null}
         </div>
         <p>{tool.description}</p>
-        <CompactTagRow tags={getToolDisplayTags(tool)} />
+        <div className="tool-card-footer">
+          <CompactTagRow tags={getToolDisplayTags(tool)} />
+        </div>
       </div>
-    </a>
+    </article>
   );
 }
 

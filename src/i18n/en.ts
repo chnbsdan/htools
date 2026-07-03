@@ -90,6 +90,7 @@ export const en: Messages = {
     featured: "Featured",
     login: "Login",
     visit: "Visit",
+    demo: "Demo",
     viewDetails: "View details",
     openAdmin: "Open Admin",
     close: "Close",

@@ -12,8 +12,9 @@ wrangler.local.toml
 .agents/
 .logs/
 
-# Local release notes
+# Local private docs
 CHANGELOG.md
+DESIGN.md
 
 # Local secrets
 .dev.vars
