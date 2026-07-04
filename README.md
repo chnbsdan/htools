@@ -84,7 +84,7 @@ npm run db:init:remote
 ## 后台设置
 
 - `/admin`：后台入口。
-- 系统设置：站点名称、站点图标、关于页面 Markdown、页脚、GitHub 提交、代理兜底、备份恢复、管理员密码。
+- 系统设置：站点名称、站点图标、关于页面 Markdown、页脚、GitHub 提交、代理访问、备份恢复、管理员密码。
 - GitHub 提交设置：配置 OAuth App 和目标仓库后，用户通过 `/submit` 提交的工具会创建为 GitHub Issue。
 - GitHub 仓库信息：后台添加或编辑工具时，填写 GitHub 仓库地址后可读取仓库元数据。
 
@@ -117,4 +117,4 @@ https://你的域名/api/github/callback
 
 ## 版本
 
-当前版本：`HTools v1.0.4`
+当前版本：`HTools v1.0.5`

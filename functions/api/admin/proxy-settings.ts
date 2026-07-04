@@ -10,6 +10,7 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
     const payload = (await request.json()) as {
       enabled?: unknown;
       baseUrl?: unknown;
+      mode?: unknown;
     };
 
     return json({

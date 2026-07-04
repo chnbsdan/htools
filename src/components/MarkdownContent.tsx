@@ -6,6 +6,8 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
+import { DEFAULT_PROXY_MODE, proxifyUrl } from "../proxy";
+import type { ProxySettings } from "../types";
 
 const markdownSanitizeSchema = {
   ...defaultSchema,
@@ -26,7 +28,19 @@ const markdownSanitizeSchema = {
 const originalLinkHeadingPattern = "(?:原文链接|Original Link|鍘熸枃閾炬帴)";
 const collapsibleCodeLineThreshold = 6;
 
-export default function MarkdownContent({ content }: { content: string }) {
+const defaultProxySettings: ProxySettings = {
+  enabled: false,
+  baseUrl: "",
+  mode: DEFAULT_PROXY_MODE
+};
+
+export default function MarkdownContent({
+  content,
+  proxySettings = defaultProxySettings
+}: {
+  content: string;
+  proxySettings?: ProxySettings;
+}) {
   const { body, linkSections, originalLink } = useMemo(
     () => {
       const extractedOriginalLink = extractOriginalMarkdownLink(content);
@@ -62,7 +76,7 @@ export default function MarkdownContent({ content }: { content: string }) {
               return (
                 <a
                   {...props}
-                  href={safeHref}
+                  href={isLocalAnchor ? safeHref : proxifyUrl(safeHref, proxySettings)}
                   rel={isLocalAnchor ? undefined : "noreferrer"}
                   target={isLocalAnchor ? undefined : "_blank"}
                 >
@@ -75,6 +89,7 @@ export default function MarkdownContent({ content }: { content: string }) {
                 <MarkdownImage
                   {...props}
                   alt={alt ?? ""}
+                  proxySettings={proxySettings}
                   src={src}
                   title={title}
                 />
@@ -123,7 +138,7 @@ export default function MarkdownContent({ content }: { content: string }) {
             {section.links.map((link) => (
               <a
                 className="product-link-card"
-                href={link.href}
+                href={proxifyUrl(link.href, proxySettings)}
                 key={`${section.title}-${link.label}-${link.href}`}
                 rel="noreferrer"
                 target="_blank"
@@ -141,7 +156,7 @@ export default function MarkdownContent({ content }: { content: string }) {
           <h2>{originalLink.title}</h2>
           <a
             className="product-link-card markdown-original-link-card"
-            href={originalLink.href}
+            href={proxifyUrl(originalLink.href, proxySettings)}
             rel="noreferrer"
             target="_blank"
           >
@@ -324,20 +339,22 @@ async function copyTextToClipboard(value: string) {
 
 function MarkdownImage({
   alt,
+  proxySettings,
   src,
   title,
   ...props
-}: ImgHTMLAttributes<HTMLImageElement>) {
+}: ImgHTMLAttributes<HTMLImageElement> & { proxySettings: ProxySettings }) {
   const safeSrc = sanitizeMarkdownImageSrc(src);
+  const proxiedSrc = safeSrc ? proxifyUrl(safeSrc, proxySettings) : "";
   const rawCaption = typeof alt === "string" ? alt.trim() : "";
   const caption = isMeaningfulImageCaption(rawCaption) ? rawCaption : "";
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     setFailed(false);
-  }, [safeSrc]);
+  }, [proxiedSrc]);
 
-  if (!safeSrc || failed) {
+  if (!proxiedSrc || failed) {
     return null;
   }
 
@@ -346,7 +363,7 @@ function MarkdownImage({
       <img
         {...props}
         alt={caption}
-        src={safeSrc}
+        src={proxiedSrc}
         title={title}
         loading="lazy"
         decoding="async"

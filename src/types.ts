@@ -176,9 +176,12 @@ export type SourceSettings = {
   sourcePath: string;
 };
 
+export type ProxyMode = "prefix" | "edgeone-proxy" | "edgeone-advanced";
+
 export type ProxySettings = {
   enabled: boolean;
   baseUrl: string;
+  mode: ProxyMode;
 };
 
 export type FooterLink = {

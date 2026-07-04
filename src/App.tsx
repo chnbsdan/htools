@@ -140,6 +140,12 @@ import {
   type Locale,
   type Messages
 } from "./i18n";
+import {
+  DEFAULT_PROXY_MODE,
+  normalizeProxyBaseUrl,
+  normalizeProxyMode,
+  proxifyUrl
+} from "./proxy";
 import type {
   AdminCategoryAction,
   AdminCategoryScope,
@@ -223,6 +229,10 @@ function preventCardDrag(event: ReactDragEvent<HTMLElement>) {
   event.preventDefault();
 }
 
+function blurActivatedLink(event: ReactMouseEvent<HTMLAnchorElement>) {
+  event.currentTarget.blur();
+}
+
 const initialContentSourceForm: ContentSourceInput = {
   title: "",
   url: "",
@@ -245,6 +255,23 @@ type PendingAdminCategoryAction = {
 
 const ADMIN_FEATURED_CATEGORY = "__admin_featured__";
 const SITE_SETTINGS_CACHE_KEY = "htools_site_settings_cache";
+const DEFAULT_FAVICON_LINKS: {
+  key: string;
+  href: string;
+  sizes?: string;
+  type?: string;
+}[] = [
+  {
+    key: "ico",
+    href: "/favicon.ico",
+    sizes: "any"
+  },
+  {
+    key: "svg",
+    href: "/favicon.svg",
+    type: "image/svg+xml"
+  }
+];
 
 function readCachedSiteSettings() {
   try {
@@ -465,8 +492,10 @@ const DEFAULT_FOOTER_GROUP_SIGNATURES = new Set(
 );
 const DEFAULT_PROXY_SETTINGS: ProxySettings = {
   enabled: false,
-  baseUrl: ""
+  baseUrl: "",
+  mode: DEFAULT_PROXY_MODE
 };
+const EDGEONE_PROXY_PROJECT_URL = "https://github.com/shaoyouvip/Edgeone-proxy";
 const DEFAULT_SITE_SETTINGS: SiteSettings = {
   name: "HTools",
   subtitle: "\u5de5\u5177\u5bfc\u822a\u7ad9",
@@ -475,6 +504,7 @@ const DEFAULT_SITE_SETTINGS: SiteSettings = {
   footer: DEFAULT_FOOTER_SETTINGS
 };
 const SiteSettingsContext = createContext<SiteSettings>(DEFAULT_SITE_SETTINGS);
+const ProxySettingsContext = createContext<ProxySettings>(DEFAULT_PROXY_SETTINGS);
 
 function getSiteDisplayName(settings: SiteSettings) {
   return settings.name.trim() || DEFAULT_SITE_SETTINGS.name;
@@ -766,6 +796,52 @@ function addSiteIconRetryParam(value: string, retryToken: number) {
   }
 }
 
+function ensureFaviconLink(key: string) {
+  const selector = `link[data-htools-favicon="${key}"]`;
+  const existingLink = document.head.querySelector<HTMLLinkElement>(selector);
+
+  if (existingLink) {
+    return existingLink;
+  }
+
+  const link = document.createElement("link");
+  link.rel = "icon";
+  link.dataset.htoolsFavicon = key;
+  document.head.appendChild(link);
+
+  return link;
+}
+
+function syncSiteFavicon(iconUrl: string) {
+  const customIconUrl = iconUrl.trim();
+
+  DEFAULT_FAVICON_LINKS.forEach((favicon) => {
+    const link = ensureFaviconLink(favicon.key);
+    link.rel = "icon";
+
+    if (customIconUrl) {
+      link.href = customIconUrl;
+      link.removeAttribute("sizes");
+      link.removeAttribute("type");
+      return;
+    }
+
+    link.href = favicon.href;
+
+    if (favicon.sizes) {
+      link.setAttribute("sizes", favicon.sizes);
+    } else {
+      link.removeAttribute("sizes");
+    }
+
+    if (favicon.type) {
+      link.type = favicon.type;
+    } else {
+      link.removeAttribute("type");
+    }
+  });
+}
+
 function getSiteIconFileType(file: File) {
   if (SITE_ICON_UPLOAD_TYPES.has(file.type)) {
     return file.type;
@@ -799,6 +875,10 @@ async function readSiteIconFile(file: File) {
 
 function useSiteSettings() {
   return useContext(SiteSettingsContext);
+}
+
+function useProxySettings() {
+  return useContext(ProxySettingsContext);
 }
 
 function SiteBrandMark({
@@ -1082,13 +1162,20 @@ function getAdminMaintenanceText(locale: Locale) {
       publicUpdated: "\u7ad9\u70b9\u6e90\u8bbe\u7f6e\u5df2\u66f4\u65b0\u3002",
       publicEnabledMessage: "\u7ad9\u70b9\u6e90\u5df2\u5f00\u542f\u3002",
       publicDisabledMessage: "\u7ad9\u70b9\u6e90\u5df2\u5173\u95ed\u3002",
-      proxyTitle: "\u4ee3\u7406\u515c\u5e95",
-      proxyDescription: "\u53ef\u7528\u4e8e\u89e3\u51b3\u90e8\u5206\u56fe\u7247\u6216\u94fe\u63a5\u8bbf\u95ee\u5f02\u5e38\u3002\u8de8\u57df\u62e6\u622a\u53ef\u80fd\u5bfc\u81f4\u56fe\u7247\u65e0\u6cd5\u52a0\u8f7d\uff0c\u8bf7\u586b\u5199\u4f60\u81ea\u5df1\u53ef\u4fe1\u7684\u4ee3\u7406\u670d\u52a1\u3002",
+      proxyTitle: "代理访问",
+      proxyDescription: "\u53ef\u7528\u4e8e\u89e3\u51b3\u90e8\u5206\u56fe\u7247\u6216\u94fe\u63a5\u8bbf\u95ee\u5f02\u5e38\u3002\u5f00\u542f\u540e\uff0c\u7ad9\u5185\u5916\u90e8\u94fe\u63a5\u548c\u5916\u90e8\u56fe\u7247\u8d44\u6e90\u4f1a\u901a\u8fc7\u4f60\u586b\u5199\u7684\u4ee3\u7406\u670d\u52a1\u8bbf\u95ee\uff0c\u7ad9\u5185\u529f\u80fd\u3001API \u548c\u7ad9\u70b9\u56fe\u6807\u4e0d\u4f1a\u88ab\u4ee3\u7406\u3002",
       proxyEnabled: "\u5df2\u5f00\u542f",
       proxyDisabled: "\u5df2\u5173\u95ed",
       proxyUrlLabel: "\u4ee3\u7406\u670d\u52a1\u5730\u5740",
       proxyPlaceholder: "https://your-proxy.example.com/",
-      proxyHelp: "\u5f00\u542f\u540e\uff0c\u56fe\u7247\u52a0\u8f7d\u548c\u94fe\u63a5\u68c0\u6d4b\u515c\u5e95\u4f1a\u6309\u201c\u4ee3\u7406\u5730\u5740 + \u76ee\u6807\u5730\u5740\u201d\u7684\u683c\u5f0f\u8bbf\u95ee\u3002",
+      proxyModeLabel: "\u4ee3\u7406\u8bbf\u95ee\u89c4\u5219",
+      proxyModePrefix: "\u76f4\u63a5\u62fc\u63a5",
+      proxyModeEdgeOneProxy: "Edgeone-Proxy \u6807\u51c6",
+      proxyModeEdgeOneAdvanced: "Edgeone-Proxy \u9ad8\u7ea7",
+      proxyHelp: "\u76f4\u63a5\u62fc\u63a5\u4f7f\u7528\u201c\u4ee3\u7406\u5730\u5740 + \u76ee\u6807\u5730\u5740\u201d\uff1bEdgeone-Proxy \u6807\u51c6\u4f7f\u7528 `/proxy?url=`\uff1bEdgeone-Proxy \u9ad8\u7ea7\u4f7f\u7528 `/advanced-proxy?url=`\u3002",
+      proxyWarning: "提示：请谨慎开启。部分站点、图片防盗链或登录跳转可能与代理不兼容，如果开启后页面显示异常，请先关闭代理或更换代理服务。",
+      proxyProjectNote: "HTools 不内置代理服务，如需使用，可自行部署代理项目后填写部署地址。",
+      proxyProjectLink: "Edgeone-Proxy \u9879\u76ee\u5730\u5740",
       proxyEnable: "\u5f00\u542f\u4ee3\u7406",
       proxyDisable: "\u5173\u95ed\u4ee3\u7406",
       proxySave: "\u4fdd\u5b58\u4ee3\u7406\u8bbe\u7f6e",
@@ -1276,15 +1363,24 @@ function getAdminMaintenanceText(locale: Locale) {
     publicUpdated: "Site source setting updated.",
     publicEnabledMessage: "Site source enabled.",
     publicDisabledMessage: "Site source disabled.",
-    proxyTitle: "Proxy Fallback",
+    proxyTitle: "Proxy Access",
     proxyDescription:
-      "Can help with some image or link access failures. Cross-origin blocking may prevent images from loading; use a proxy service you trust.",
+      "Can help with image or link access failures. When enabled, external links and external image resources use the proxy service you provide, while internal site features, APIs, and the site icon stay direct.",
     proxyEnabled: "Enabled",
     proxyDisabled: "Disabled",
     proxyUrlLabel: "Proxy service URL",
     proxyPlaceholder: "https://your-proxy.example.com/",
+    proxyModeLabel: "Proxy access rule",
+    proxyModePrefix: "Direct prefix",
+    proxyModeEdgeOneProxy: "Edgeone-Proxy Standard",
+    proxyModeEdgeOneAdvanced: "Edgeone-Proxy Advanced",
     proxyHelp:
-      "When enabled, image loading and link-check fallback use the format: proxy URL + target URL.",
+      "Direct prefix uses proxy URL + target URL; Edgeone-Proxy Standard uses /proxy?url=; Edgeone-Proxy Advanced uses /advanced-proxy?url=.",
+    proxyWarning:
+      "Tip: enable with care. Some sites, hotlink-protected images, or login redirects may not work through a proxy. If the site displays incorrectly, disable the proxy or change the proxy service first.",
+    proxyProjectNote:
+      "HTools does not include a proxy service. Deploy your own proxy project, then paste its deployment URL here.",
+    proxyProjectLink: "Edgeone-Proxy project",
     proxyEnable: "Enable Proxy",
     proxyDisable: "Disable Proxy",
     proxySave: "Save Proxy Settings",
@@ -2213,50 +2309,6 @@ function usesGitHubOpenGraphPreview(tool: Tool) {
         isGeneratedScreenshotUrl(tool.image) ||
         isGitHubOpenGraphImageUrl(tool.image))
   );
-}
-
-function normalizeProxyBaseUrl(value: string) {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return "";
-  }
-
-  const withProtocol = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)
-    ? trimmed
-    : `https://${trimmed}`;
-
-  try {
-    const url = new URL(withProtocol);
-
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      return "";
-    }
-
-    return `${url.origin}${url.pathname.replace(/\/?$/, "/")}`;
-  } catch {
-    return "";
-  }
-}
-
-function proxifyUrl(value: string, settings: ProxySettings) {
-  const trimmed = value.trim();
-
-  if (!trimmed || !settings.enabled || !settings.baseUrl) {
-    return trimmed;
-  }
-
-  try {
-    const url = new URL(trimmed);
-
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      return trimmed;
-    }
-
-    return `${settings.baseUrl}${url.toString()}`;
-  } catch {
-    return trimmed;
-  }
 }
 
 function normalizeHttpUrlInput(value: string) {
@@ -3231,7 +3283,8 @@ export function App() {
         if (active) {
           setProxySettings({
             enabled: settings.enabled,
-            baseUrl: normalizeProxyBaseUrl(settings.baseUrl)
+            baseUrl: normalizeProxyBaseUrl(settings.baseUrl),
+            mode: normalizeProxyMode(settings.mode)
           });
         }
       } catch {
@@ -3275,6 +3328,10 @@ export function App() {
   useEffect(() => {
     document.title = getSiteDocumentTitle(siteSettings);
   }, [siteSettings]);
+
+  useEffect(() => {
+    syncSiteFavicon(siteSettings.iconUrl);
+  }, [siteSettings.iconUrl]);
 
   const hasFeaturedTools = tools.some((tool) => tool.featured);
   const categories = useMemo(() => {
@@ -3495,8 +3552,10 @@ export function App() {
 
   return (
     <SiteSettingsContext.Provider value={siteSettings}>
-      {page}
-      <GlobalToasts toasts={toasts} />
+      <ProxySettingsContext.Provider value={proxySettings}>
+        {page}
+        <GlobalToasts toasts={toasts} />
+      </ProxySettingsContext.Provider>
     </SiteSettingsContext.Provider>
   );
 }
@@ -4122,6 +4181,7 @@ function ArticleDetailPage({
   const [error, setError] = useState("");
   const articleText = getArticleText(locale);
   const siteSettings = useSiteSettings();
+  const proxySettings = useProxySettings();
   const showSkeleton = useLoadingSkeleton(isLoading);
   const articleSearchParams = new URLSearchParams(window.location.search);
   const isPreview = articleSearchParams.get("preview") === "1";
@@ -4247,7 +4307,10 @@ function ArticleDetailPage({
                 </LoadingSkeleton>
               }
             >
-              <MarkdownContent content={articleBodyContent} />
+              <MarkdownContent
+                content={articleBodyContent}
+                proxySettings={proxySettings}
+              />
             </Suspense>
           </article>
         ) : (
@@ -4380,20 +4443,22 @@ function ArticleListItem({
 }
 
 function ArticleDetailCover({ src }: { src: string }) {
+  const proxySettings = useProxySettings();
+  const proxiedSrc = proxifyUrl(src, proxySettings);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     setFailed(false);
-  }, [src]);
+  }, [proxiedSrc]);
 
-  if (!src || failed) {
+  if (!proxiedSrc || failed) {
     return null;
   }
 
   return (
     <img
       className="article-detail-cover"
-      src={src}
+      src={proxiedSrc}
       alt=""
       loading="lazy"
       decoding="async"
@@ -4501,6 +4566,7 @@ function AboutPage({
   themeMode: ThemeMode;
 }) {
   const siteSettings = useSiteSettings();
+  const proxySettings = useProxySettings();
   const showSettingsSkeleton = useLoadingSkeleton(!siteSettingsLoaded);
   const aboutContent = siteSettings.aboutContent?.trim() ?? "";
   const showDefaultAboutHero = siteSettingsLoaded && !aboutContent;
@@ -4541,7 +4607,7 @@ function AboutPage({
                   </LoadingSkeleton>
                 }
               >
-                <MarkdownContent content={aboutContent} />
+                <MarkdownContent content={aboutContent} proxySettings={proxySettings} />
               </Suspense>
             ) : siteSettingsLoaded ? (
               <>
@@ -4583,7 +4649,7 @@ function AboutPage({
                     {productLinks.map((link) => (
                       <a
                         className="product-link-card"
-                        href={link.href}
+                        href={proxifyUrl(link.href, proxySettings)}
                         key={link.label}
                         target="_blank"
                         rel="noreferrer"
@@ -4910,6 +4976,7 @@ function HomeHeader({
   const mobileNavCloseTimerRef = useRef<number | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const siteSettings = useSiteSettings();
+  const proxySettings = useProxySettings();
   const siteName = getSiteDisplayName(siteSettings);
   const siteSubtitle = getSiteSubtitle(siteSettings);
   const isMobileNavVisible = isMobileNavOpen || isMobileNavClosing;
@@ -5151,7 +5218,11 @@ function HomeHeader({
 
     if (normalizedSearchQuery && searchResults[0]) {
       event.preventDefault();
-      window.open(searchResults[0].url, "_blank", "noopener,noreferrer");
+      window.open(
+        proxifyUrl(searchResults[0].url, proxySettings),
+        "_blank",
+        "noopener,noreferrer"
+      );
       closeSearch();
       return;
     }
@@ -5629,7 +5700,7 @@ function HomeHeader({
                     {searchResults.map((tool) => (
                       <a
                         className="global-search-result"
-                        href={tool.url}
+                        href={proxifyUrl(tool.url, proxySettings)}
                         key={tool.id}
                         target="_blank"
                         rel="noreferrer"
@@ -5907,9 +5978,21 @@ function ToolPreviewActions({
   tool: Tool;
 }) {
   const hasDemo = Boolean(demoHref);
+  const projectHref = proxifyUrl(tool.url, proxySettings);
+  const proxiedDemoHref = proxifyUrl(demoHref, proxySettings);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const lastPointerTypeRef = useRef("");
   const [isTouchSplitActive, setIsTouchSplitActive] = useState(false);
+  const [isInteractionDismissed, setIsInteractionDismissed] = useState(false);
+
+  function blurPreviewFocus() {
+    const root = rootRef.current;
+    const activeElement = document.activeElement;
+
+    if (root && activeElement instanceof HTMLElement && root.contains(activeElement)) {
+      activeElement.blur();
+    }
+  }
 
   useEffect(() => {
     if (!isTouchSplitActive) {
@@ -5921,6 +6004,8 @@ function ToolPreviewActions({
 
       if (root && !root.contains(event.target as Node)) {
         setIsTouchSplitActive(false);
+        setIsInteractionDismissed(false);
+        blurPreviewFocus();
       }
     }
 
@@ -5933,6 +6018,7 @@ function ToolPreviewActions({
 
   useEffect(() => {
     setIsTouchSplitActive(false);
+    setIsInteractionDismissed(false);
   }, [demoHref, tool.url]);
 
   function handlePreviewPointerDown(event: ReactPointerEvent<HTMLAnchorElement>) {
@@ -5941,10 +6027,15 @@ function ToolPreviewActions({
 
   function handlePreviewActionClick(event: ReactMouseEvent<HTMLAnchorElement>) {
     if (!hasDemo) {
+      setIsInteractionDismissed(true);
+      blurActivatedLink(event);
       return;
     }
 
     if (event.detail === 0) {
+      setIsTouchSplitActive(false);
+      setIsInteractionDismissed(true);
+      blurActivatedLink(event);
       return;
     }
 
@@ -5959,15 +6050,29 @@ function ToolPreviewActions({
     if (isTouchPointer && !isTouchSplitActive) {
       event.preventDefault();
       setIsTouchSplitActive(true);
+      setIsInteractionDismissed(false);
+      event.currentTarget.blur();
+      lastPointerTypeRef.current = "";
+      return;
     }
+
+    setIsTouchSplitActive(false);
+    setIsInteractionDismissed(true);
+    blurActivatedLink(event);
+    lastPointerTypeRef.current = "";
   }
 
   return (
     <div
       className={`tool-preview-shell ${hasDemo ? "has-demo" : ""} ${
         isTouchSplitActive ? "is-touch-active" : ""
-      }`}
+      } ${isInteractionDismissed ? "is-action-dismissed" : ""}`}
       ref={rootRef}
+      onFocus={() => setIsInteractionDismissed(false)}
+      onPointerLeave={() => {
+        setIsTouchSplitActive(false);
+        setIsInteractionDismissed(false);
+      }}
     >
       <div className={`tool-image-link ${isGitHubPreview ? "is-github-preview" : ""}`}>
         <ToolPreviewImage priority={priority} proxySettings={proxySettings} tool={tool} t={t} />
@@ -5997,7 +6102,7 @@ function ToolPreviewActions({
       <div className={`tool-preview-action-grid ${hasDemo ? "has-demo" : ""}`}>
         <a
           className="tool-preview-action is-project"
-          href={tool.url}
+          href={projectHref}
           target="_blank"
           rel="noreferrer"
           aria-label={`${t.actions.visit}: ${tool.name}`}
@@ -6009,7 +6114,7 @@ function ToolPreviewActions({
         {hasDemo ? (
           <a
             className="tool-preview-action is-demo"
-            href={demoHref}
+            href={proxiedDemoHref}
             target="_blank"
             rel="noreferrer"
             aria-label={`${t.form.demoUrl}: ${tool.name}`}
@@ -6101,6 +6206,7 @@ function HomeToolCard({
 }) {
   const demoHref = getToolDemoHref(tool);
   const isGitHubPreview = usesGitHubOpenGraphPreview(tool);
+  const toolHref = proxifyUrl(tool.url, proxySettings);
 
   return (
     <article className="tool-card home-tool-card">
@@ -6118,11 +6224,12 @@ function HomeToolCard({
         <h3>
           <a
             className="tool-title-link"
-            href={tool.url}
+            href={toolHref}
             target="_blank"
             rel="noreferrer"
             draggable={false}
             onDragStart={preventCardDrag}
+            onClick={blurActivatedLink}
           >
             {tool.name}
           </a>
@@ -6143,6 +6250,7 @@ type FooterLink = {
 
 function HomeFooter({ t }: { t: Messages }) {
   const siteSettings = useSiteSettings();
+  const proxySettings = useProxySettings();
   const siteName = getSiteDisplayName(siteSettings);
   const footerSettings = getLocalizedFooterSettings(siteSettings, t);
   const footerCopyrightSuffix =
@@ -6161,13 +6269,22 @@ function HomeFooter({ t }: { t: Messages }) {
           <p>{footerSettings.description}</p>
           <div className="footer-socials">
             {footerSettings.socialLinks.map((link) => (
-              <FooterIconLink key={`${link.label}-${link.href}`} link={link} />
+              <FooterIconLink
+                key={`${link.label}-${link.href}`}
+                link={link}
+                proxySettings={proxySettings}
+              />
             ))}
             {footerSettings.sponsorUrl ? (
-            <a className="coffee-button" href={footerSettings.sponsorUrl} target="_blank" rel="noreferrer">
-              <Coffee size={17} />
-              {footerSettings.sponsorLabel}
-            </a>
+              <a
+                className="coffee-button"
+                href={proxifyUrl(footerSettings.sponsorUrl, proxySettings)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Coffee size={17} />
+                {footerSettings.sponsorLabel}
+              </a>
             ) : null}
           </div>
         </div>
@@ -6175,8 +6292,9 @@ function HomeFooter({ t }: { t: Messages }) {
         {footerSettings.groups.map((group) => (
           <FooterColumn
             key={`${group.title}-${group.links.length}`}
-            title={group.title}
             links={group.links}
+            proxySettings={proxySettings}
+            title={group.title}
           />
         ))}
       </div>
@@ -6184,7 +6302,11 @@ function HomeFooter({ t }: { t: Messages }) {
       <div className="footer-bottom">
         <span>
           &copy; 2026{" "}
-          <a href={footerSettings.authorUrl} target="_blank" rel="noreferrer">
+          <a
+            href={proxifyUrl(footerSettings.authorUrl, proxySettings)}
+            target="_blank"
+            rel="noreferrer"
+          >
             {footerSettings.authorName}
           </a>
           {footerCopyrightSuffix}
@@ -6194,15 +6316,22 @@ function HomeFooter({ t }: { t: Messages }) {
   );
 }
 
-function FooterIconLink({ link }: { link: FooterLink }) {
+function FooterIconLink({
+  link,
+  proxySettings
+}: {
+  link: FooterLink;
+  proxySettings: ProxySettings;
+}) {
   const Icon = getFooterLinkIcon(link);
+  const isExternal = link.href.startsWith("http");
 
   return (
     <a
-      href={link.href}
+      href={isExternal ? proxifyUrl(link.href, proxySettings) : link.href}
       aria-label={link.label}
-      target={link.href.startsWith("http") ? "_blank" : undefined}
-      rel={link.href.startsWith("http") ? "noreferrer" : undefined}
+      target={isExternal ? "_blank" : undefined}
+      rel={isExternal ? "noreferrer" : undefined}
     >
       <Icon size={18} />
     </a>
@@ -6278,20 +6407,32 @@ function matchesFooterKeyword(value: string, keywords: string[]) {
   return keywords.some((keyword) => value.includes(keyword));
 }
 
-function FooterColumn({ links, title }: { links: FooterLink[]; title: string }) {
+function FooterColumn({
+  links,
+  proxySettings,
+  title
+}: {
+  links: FooterLink[];
+  proxySettings: ProxySettings;
+  title: string;
+}) {
   return (
     <div className="footer-column">
       <h3>{title}</h3>
-      {links.map((link) => (
-        <a
-          href={link.href}
-          key={link.label}
-          target={link.href.startsWith("http") ? "_blank" : undefined}
-          rel={link.href.startsWith("http") ? "noreferrer" : undefined}
-        >
-          {link.label}
-        </a>
-      ))}
+      {links.map((link) => {
+        const isExternal = link.href.startsWith("http");
+
+        return (
+          <a
+            href={isExternal ? proxifyUrl(link.href, proxySettings) : link.href}
+            key={link.label}
+            target={isExternal ? "_blank" : undefined}
+            rel={isExternal ? "noreferrer" : undefined}
+          >
+            {link.label}
+          </a>
+        );
+      })}
     </div>
   );
 }
@@ -6337,6 +6478,7 @@ function SubmitPage({
   const [issueUrl, setIssueUrl] = useState("");
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const proxySettings = useProxySettings();
   const isPageLoading = isAuthLoading || !siteSettingsLoaded;
   const showPageSkeleton = useLoadingSkeleton(isPageLoading);
   const submitAuthDescription = authState.user
@@ -6607,7 +6749,7 @@ function SubmitPage({
                     {issueUrl ? (
                       <a
                         className="ghost-button compact submit-status-link"
-                        href={issueUrl}
+                        href={proxifyUrl(issueUrl, proxySettings)}
                         target="_blank"
                         rel="noreferrer"
                       >
@@ -6990,6 +7132,14 @@ function GitHubSettingsFormSkeleton() {
           </div>
         ))}
       </div>
+      <div className="admin-settings-field-skeleton">
+        <span className="skeleton-shimmer skeleton-line is-short" />
+        <span className="skeleton-shimmer admin-settings-input-skeleton" />
+      </div>
+      <div className="callback-box">
+        <span className="skeleton-shimmer skeleton-line is-short" />
+        <span className="skeleton-shimmer admin-settings-code-skeleton" />
+      </div>
       <div className="source-public-actions github-settings-actions">
         <span className="skeleton-shimmer admin-settings-button-skeleton" />
         <span className="skeleton-shimmer admin-settings-button-skeleton is-secondary" />
@@ -7011,6 +7161,7 @@ function ToolCard({
 }) {
   const demoHref = getToolDemoHref(tool);
   const isGitHubPreview = usesGitHubOpenGraphPreview(tool);
+  const toolHref = proxifyUrl(tool.url, proxySettings);
 
   return (
     <article className="tool-card">
@@ -7029,11 +7180,12 @@ function ToolCard({
           <h2>
             <a
               className="tool-title-link"
-              href={tool.url}
+              href={toolHref}
               target="_blank"
               rel="noreferrer"
               draggable={false}
               onDragStart={preventCardDrag}
+              onClick={blurActivatedLink}
             >
               {tool.name}
             </a>
@@ -9265,6 +9417,7 @@ function AdminApp({
               onEditSource={openEditContentSource}
               onSelectSource={setContentSourceFilter}
               onSyncSource={(source) => void handleSyncContentSource(source)}
+              proxySettings={proxySettings}
               onAddSource={openCreateContentSource}
               showSkeletons={showAdminContentSkeletons}
               syncingSourceId={syncingSourceId}
@@ -9277,6 +9430,7 @@ function AdminApp({
               isLoadingTools={isLoadingTools && !hasLoadedTools}
               maintenanceText={maintenanceText}
               onReloadTools={refresh}
+              proxySettings={proxySettings}
               setStatus={setStatus}
               t={t}
               token={token}
@@ -10296,6 +10450,7 @@ function AdminContentFlowPanel({
   onEditSource,
   onSelectSource,
   onSyncSource,
+  proxySettings,
   showSkeletons,
   syncingSourceId,
   visibleContentItems
@@ -10314,6 +10469,7 @@ function AdminContentFlowPanel({
   onEditSource: (source: ContentSource) => void;
   onSelectSource: (sourceId: string) => void;
   onSyncSource: (source: ContentSource) => void;
+  proxySettings: ProxySettings;
   showSkeletons: boolean;
   syncingSourceId: string | null;
   visibleContentItems: ContentItem[];
@@ -10378,6 +10534,7 @@ function AdminContentFlowPanel({
                 item={item}
                 key={item.id}
                 onConvert={() => onConvertItem(item)}
+                proxySettings={proxySettings}
               />
             ))}
           </div>
@@ -10472,22 +10629,26 @@ function ContentItemCard({
   contentText,
   isConvertLocked,
   item,
-  onConvert
+  onConvert,
+  proxySettings
 }: {
   contentText: ReturnType<typeof getContentFlowText>;
   isConvertLocked: boolean;
   item: ContentItem;
   onConvert: () => void;
+  proxySettings: ProxySettings;
 }) {
   const Icon = getCategoryIcon(item.category);
   const displayDate = formatAdminDate(item.published_at ?? item.updated_at);
   const displayTitle = getArticleDisplayTitle(item);
+  const coverSrc = item.coverImage ? proxifyUrl(item.coverImage, proxySettings) : "";
+  const originalHref = proxifyUrl(item.url, proxySettings);
   const [coverFailed, setCoverFailed] = useState(false);
-  const showCover = Boolean(item.coverImage && !coverFailed);
+  const showCover = Boolean(coverSrc && !coverFailed);
 
   useEffect(() => {
     setCoverFailed(false);
-  }, [item.coverImage]);
+  }, [coverSrc]);
 
   return (
     <article className={`content-item-card ${showCover ? "has-cover" : ""}`}>
@@ -10506,7 +10667,7 @@ function ContentItemCard({
       {showCover ? (
         <img
           className="content-item-cover"
-          src={item.coverImage}
+          src={coverSrc}
           alt=""
           loading="lazy"
           decoding="async"
@@ -10516,7 +10677,7 @@ function ContentItemCard({
       <div className="content-item-actions">
         <a
           className="ghost-button"
-          href={item.url}
+          href={originalHref}
           target="_blank"
           rel="noreferrer"
         >
@@ -10995,6 +11156,7 @@ function AdminToolCard({
   const actionsRef = useRef<HTMLDivElement>(null);
   const copiedLinkTimer = useRef<number | null>(null);
   const isGitHubTool = isGitHubUrl(tool.url);
+  const toolHref = proxifyUrl(tool.url, proxySettings);
 
   useEffect(() => {
     if (!actionsOpen) {
@@ -11152,7 +11314,7 @@ function AdminToolCard({
         <div className="admin-tool-link-row" title={tool.url}>
           <a
             className="admin-tool-link-text"
-            href={tool.url}
+            href={toolHref}
             rel="noreferrer"
             target="_blank"
             aria-label={`${t.actions.visit}: ${tool.name}`}
@@ -11357,6 +11519,12 @@ function AdminToolCardSkeleton() {
         <span className="skeleton-shimmer skeleton-line is-medium" />
       </div>
 
+      <div className="admin-tool-links admin-skeleton-links">
+        <div className="admin-tool-link-row">
+          <span className="skeleton-shimmer skeleton-line" />
+        </div>
+      </div>
+
       <div className="admin-tool-card-footer">
         <div className="skeleton-tag-row">
           <span className="skeleton-shimmer skeleton-tag" />
@@ -11441,7 +11609,7 @@ function ContentFlowSkeleton() {
       <div className="content-flow-main">
         <div className="content-item-list">
           {Array.from({ length: 4 }).map((_, index) => (
-            <article className="content-item-card content-item-card-skeleton" key={index}>
+            <article className="content-item-card has-cover content-item-card-skeleton" key={index}>
               <div className="content-item-main">
                 <div className="content-item-meta">
                   <span className="skeleton-shimmer skeleton-line is-short" />
@@ -11453,8 +11621,9 @@ function ContentFlowSkeleton() {
                   <span className="skeleton-shimmer skeleton-line is-medium" />
                 </div>
                 <div className="content-item-actions">
-                  <span className="skeleton-shimmer skeleton-tag" />
-                  <span className="skeleton-shimmer skeleton-tag is-small" />
+                  <span className="skeleton-shimmer content-action-skeleton" />
+                  <span className="skeleton-shimmer content-action-skeleton" />
+                  <span className="skeleton-shimmer content-action-skeleton" />
                 </div>
               </div>
               <span className="skeleton-shimmer content-item-cover" />
@@ -11466,6 +11635,60 @@ function ContentFlowSkeleton() {
   );
 }
 
+function AdminSettingsHeadingSkeleton({ withStatus = false }: { withStatus?: boolean }) {
+  return (
+    <div
+      className={`admin-settings-heading-skeleton ${
+        withStatus ? "has-status" : ""
+      }`.trim()}
+    >
+      <span className="skeleton-shimmer skeleton-line is-medium" />
+      {withStatus ? <span className="skeleton-shimmer source-card-status" /> : null}
+      <span className="skeleton-shimmer skeleton-line is-long" />
+    </div>
+  );
+}
+
+function AdminSettingsFieldSkeleton({
+  textareaClassName = ""
+}: {
+  textareaClassName?: string;
+}) {
+  const isTextarea = Boolean(textareaClassName);
+
+  return (
+    <div className="admin-settings-field-skeleton">
+      <span className="skeleton-shimmer skeleton-line is-short" />
+      <span
+        className={`skeleton-shimmer ${
+          isTextarea ? textareaClassName : "admin-settings-input-skeleton"
+        }`.trim()}
+      />
+    </div>
+  );
+}
+
+function AdminSettingsActionsSkeleton({
+  className = "source-public-actions",
+  count = 2
+}: {
+  className?: string;
+  count?: number;
+}) {
+  return (
+    <div className={className}>
+      {Array.from({ length: count }).map((_, index) => (
+        <span
+          className={`skeleton-shimmer admin-settings-button-skeleton ${
+            index > 0 ? "is-secondary" : ""
+          }`.trim()}
+          key={index}
+        />
+      ))}
+    </div>
+  );
+}
+
 function AdminSystemSettingsSkeleton() {
   return (
     <section
@@ -11474,45 +11697,109 @@ function AdminSystemSettingsSkeleton() {
     >
       <div className="system-settings-grid">
         <div className="system-settings-column system-settings-primary">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <article className="source-public-card admin-settings-card-skeleton" key={index}>
-              <div>
-                <span className="skeleton-shimmer skeleton-line is-short" />
-                <span className="skeleton-shimmer skeleton-line is-long" />
-              </div>
-              <div className="admin-settings-field-skeleton">
-                <span className="skeleton-shimmer skeleton-line is-short" />
-                <span className="skeleton-shimmer admin-settings-input-skeleton" />
-              </div>
-              <div className="admin-settings-field-skeleton">
-                <span className="skeleton-shimmer skeleton-line is-short" />
-                <span className="skeleton-shimmer admin-settings-input-skeleton" />
-              </div>
-              <div className="source-public-actions">
+          <article className="source-public-card site-identity-card admin-settings-card-skeleton">
+            <AdminSettingsHeadingSkeleton />
+            <div className="proxy-settings-form">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <AdminSettingsFieldSkeleton key={index} />
+              ))}
+              <span className="skeleton-shimmer skeleton-line is-medium admin-settings-help-skeleton" />
+              <div className="site-icon-upload-row admin-settings-upload-row-skeleton">
                 <span className="skeleton-shimmer admin-settings-button-skeleton" />
-                <span className="skeleton-shimmer admin-settings-button-skeleton is-secondary" />
+                <span className="skeleton-shimmer skeleton-line is-medium" />
               </div>
-            </article>
-          ))}
+              <span className="skeleton-shimmer skeleton-line is-long admin-settings-help-skeleton" />
+              <div className="site-identity-footer">
+                <div className="site-identity-preview-shell">
+                  <div className="site-identity-preview">
+                    <span className="skeleton-shimmer admin-settings-logo-skeleton" />
+                    <span className="admin-settings-preview-lines">
+                      <span className="skeleton-shimmer skeleton-line is-medium" />
+                      <span className="skeleton-shimmer skeleton-line is-short" />
+                    </span>
+                  </div>
+                </div>
+                <AdminSettingsActionsSkeleton className="site-identity-actions" />
+              </div>
+            </div>
+          </article>
+
+          <article className="source-public-card about-settings-card admin-settings-card-skeleton">
+            <AdminSettingsHeadingSkeleton />
+            <div className="footer-settings-form">
+              <AdminSettingsFieldSkeleton textareaClassName="admin-settings-textarea-skeleton is-about" />
+              <AdminSettingsActionsSkeleton />
+            </div>
+          </article>
+
+          <article className="source-public-card footer-settings-card admin-settings-card-skeleton">
+            <AdminSettingsHeadingSkeleton />
+            <div className="footer-settings-form">
+              <AdminSettingsFieldSkeleton textareaClassName="admin-settings-textarea-skeleton is-footer-intro" />
+              <div className="footer-settings-pair">
+                <AdminSettingsFieldSkeleton />
+                <AdminSettingsFieldSkeleton />
+              </div>
+              <AdminSettingsFieldSkeleton textareaClassName="admin-settings-textarea-skeleton is-footer-links" />
+              <AdminSettingsFieldSkeleton textareaClassName="admin-settings-textarea-skeleton is-footer-groups" />
+              <span className="skeleton-shimmer skeleton-line is-long admin-settings-help-skeleton" />
+              <AdminSettingsActionsSkeleton />
+            </div>
+          </article>
         </div>
 
         <div className="system-settings-column system-settings-secondary">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <article className="source-public-card admin-settings-card-skeleton" key={index}>
-              <div>
-                <span className="skeleton-shimmer skeleton-line is-medium" />
-                <span className="skeleton-shimmer skeleton-line is-long" />
-              </div>
-              <div className="source-report-grid admin-settings-report-skeleton">
-                {Array.from({ length: 2 }).map((__, reportIndex) => (
-                  <div key={reportIndex}>
-                    <span className="skeleton-shimmer skeleton-line is-short" />
-                    <span className="skeleton-shimmer skeleton-line is-medium" />
-                  </div>
-                ))}
-              </div>
-            </article>
-          ))}
+          <article className="source-public-card github-submission-card admin-settings-card-skeleton">
+            <GitHubSettingsFormSkeleton />
+          </article>
+
+          <article className="source-public-card admin-security-card admin-settings-card-skeleton">
+            <AdminSettingsHeadingSkeleton />
+            <span className="skeleton-shimmer skeleton-line is-medium admin-settings-help-skeleton" />
+            <div className="admin-security-form">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <AdminSettingsFieldSkeleton key={index} />
+              ))}
+              <span className="skeleton-shimmer admin-settings-button-skeleton" />
+            </div>
+          </article>
+
+          <article className="source-public-card public-source-card admin-settings-card-skeleton">
+            <AdminSettingsHeadingSkeleton withStatus />
+            <span className="skeleton-shimmer skeleton-line is-short source-public-label" />
+            <span className="skeleton-shimmer admin-settings-code-skeleton" />
+            <AdminSettingsActionsSkeleton count={3} />
+          </article>
+
+          <article className="source-public-card proxy-settings-card admin-settings-card-skeleton">
+            <AdminSettingsHeadingSkeleton withStatus />
+            <span className="skeleton-shimmer skeleton-line is-long admin-settings-help-skeleton" />
+            <div className="proxy-settings-form">
+              <AdminSettingsFieldSkeleton />
+              <AdminSettingsFieldSkeleton />
+              <span className="skeleton-shimmer skeleton-line is-long admin-settings-help-skeleton" />
+              <span className="skeleton-shimmer skeleton-line is-medium admin-settings-help-skeleton" />
+              <AdminSettingsActionsSkeleton />
+            </div>
+          </article>
+
+          <article className="source-public-card backup-restore-card admin-settings-card-skeleton">
+            <AdminSettingsHeadingSkeleton />
+            <div>
+              <span className="skeleton-shimmer skeleton-line is-medium" />
+              <span className="skeleton-shimmer skeleton-line is-long" />
+            </div>
+            <AdminSettingsActionsSkeleton count={3} />
+          </article>
+
+          <article className="source-public-card factory-reset-card admin-settings-card-skeleton">
+            <AdminSettingsHeadingSkeleton />
+            <div>
+              <span className="skeleton-shimmer skeleton-line is-medium" />
+              <span className="skeleton-shimmer skeleton-line is-long" />
+            </div>
+            <AdminSettingsActionsSkeleton count={1} />
+          </article>
         </div>
       </div>
     </section>
@@ -11528,14 +11815,16 @@ function AdminLinkCheckSkeleton() {
             <span className="skeleton-shimmer skeleton-line is-medium" />
             <span className="skeleton-shimmer skeleton-line is-long" />
           </div>
-          <div className="admin-settings-field-skeleton">
+          <AdminSettingsFieldSkeleton />
+          <div className="source-mode-row">
             <span className="skeleton-shimmer skeleton-line is-short" />
-            <span className="skeleton-shimmer admin-settings-input-skeleton" />
+            <div className="source-mode-toggle source-mode-toggle-skeleton">
+              <span className="skeleton-shimmer admin-settings-button-skeleton" />
+              <span className="skeleton-shimmer admin-settings-button-skeleton is-secondary" />
+            </div>
+            <span className="skeleton-shimmer skeleton-line is-long" />
           </div>
-          <div className="source-public-actions">
-            <span className="skeleton-shimmer admin-settings-button-skeleton" />
-            <span className="skeleton-shimmer admin-settings-button-skeleton is-secondary" />
-          </div>
+          <AdminSettingsActionsSkeleton className="source-action-row" count={3} />
         </div>
       </section>
 
@@ -11546,17 +11835,10 @@ function AdminLinkCheckSkeleton() {
         </div>
         <div className="link-check-config">
           {Array.from({ length: 2 }).map((_, index) => (
-            <div className="admin-settings-field-skeleton" key={index}>
-              <span className="skeleton-shimmer skeleton-line is-short" />
-              <span className="skeleton-shimmer admin-settings-input-skeleton" />
-            </div>
+            <AdminSettingsFieldSkeleton key={index} />
           ))}
         </div>
-        <div className="link-check-actions">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <span className="skeleton-shimmer admin-settings-button-skeleton" key={index} />
-          ))}
-        </div>
+        <AdminSettingsActionsSkeleton className="link-check-actions" count={5} />
       </div>
 
       <div className="link-check-stats">
@@ -11568,12 +11850,30 @@ function AdminLinkCheckSkeleton() {
         ))}
       </div>
 
+      <section className="link-check-progress">
+        <div className="link-check-progress-head">
+          <div>
+            <span className="skeleton-shimmer skeleton-line is-medium" />
+            <span className="skeleton-shimmer skeleton-line is-long" />
+          </div>
+          <span className="skeleton-shimmer link-check-percent-skeleton" />
+        </div>
+        <div className="link-check-progress-track" aria-hidden="true">
+          <span className="skeleton-shimmer link-check-progress-skeleton-bar" />
+        </div>
+      </section>
+
       <section className="link-check-results">
         <div className="link-check-results-head">
           <div>
             <span className="skeleton-shimmer skeleton-line is-medium" />
             <span className="skeleton-shimmer skeleton-line is-long" />
           </div>
+        </div>
+        <div className="link-check-tabs link-check-tabs-skeleton">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <span className="skeleton-shimmer admin-settings-button-skeleton" key={index} />
+          ))}
         </div>
         <div className="admin-link-table-skeleton">
           {Array.from({ length: 6 }).map((_, index) => (
@@ -11785,13 +12085,15 @@ function AdminSystemSettingsPanel({
       const settings = await saveProxySettings(
         {
           enabled: nextSettings.enabled,
-          baseUrl
+          baseUrl,
+          mode: normalizeProxyMode(nextSettings.mode)
         },
         token
       );
       const normalizedSettings = {
         enabled: settings.enabled,
-        baseUrl: normalizeProxyBaseUrl(settings.baseUrl)
+        baseUrl: normalizeProxyBaseUrl(settings.baseUrl),
+        mode: normalizeProxyMode(settings.mode)
       };
       setProxyForm(normalizedSettings);
       onProxySettingsChange(normalizedSettings);
@@ -12121,7 +12423,8 @@ function AdminSystemSettingsPanel({
       ]);
       const normalizedProxy = {
         enabled: proxy.enabled,
-        baseUrl: normalizeProxyBaseUrl(proxy.baseUrl)
+        baseUrl: normalizeProxyBaseUrl(proxy.baseUrl),
+        mode: normalizeProxyMode(proxy.mode)
       };
 
       setSourceSettings(source);
@@ -12545,6 +12848,7 @@ function AdminSystemSettingsPanel({
                 : maintenanceText.proxyDisabled}
             </span>
             <p>{maintenanceText.proxyDescription}</p>
+            <p className="proxy-warning-note">{maintenanceText.proxyWarning}</p>
           </div>
           <form className="proxy-settings-form" onSubmit={saveProxyForm}>
             <label className="source-url-field">
@@ -12562,7 +12866,40 @@ function AdminSystemSettingsPanel({
                 value={proxyForm.baseUrl}
               />
             </label>
+            <label className="source-url-field">
+              {maintenanceText.proxyModeLabel}
+              <select
+                disabled={proxySaving}
+                onChange={(event) =>
+                  setProxyForm({
+                    ...proxyForm,
+                    mode: normalizeProxyMode(event.target.value)
+                  })
+                }
+                value={normalizeProxyMode(proxyForm.mode)}
+              >
+                <option value="prefix">{maintenanceText.proxyModePrefix}</option>
+                <option value="edgeone-proxy">
+                  {maintenanceText.proxyModeEdgeOneProxy}
+                </option>
+                <option value="edgeone-advanced">
+                  {maintenanceText.proxyModeEdgeOneAdvanced}
+                </option>
+              </select>
+            </label>
             <p>{maintenanceText.proxyHelp}</p>
+            <p className="proxy-project-note">
+              <span>{maintenanceText.proxyProjectNote}</span>
+              <a
+                className="proxy-project-link"
+                href={EDGEONE_PROXY_PROJECT_URL}
+                rel="noreferrer"
+                target="_blank"
+              >
+                {maintenanceText.proxyProjectLink}
+                <ArrowUpRight size={14} />
+              </a>
+            </p>
             <div className="source-public-actions">
               <button
                 className="primary-button"
@@ -12734,6 +13071,7 @@ function AdminLinkCheckPanel({
   isLoadingTools,
   maintenanceText,
   onReloadTools,
+  proxySettings,
   setStatus,
   t,
   token,
@@ -12742,6 +13080,7 @@ function AdminLinkCheckPanel({
   isLoadingTools: boolean;
   maintenanceText: ReturnType<typeof getAdminMaintenanceText>;
   onReloadTools: () => Promise<void>;
+  proxySettings: ProxySettings;
   setStatus: (status: string) => void;
   t: Messages;
   token: string;
@@ -13387,7 +13726,7 @@ function AdminLinkCheckPanel({
                           {showToolUrl ? (
                             <a
                               className="link-check-open-link"
-                              href={relatedToolUrl}
+                              href={proxifyUrl(relatedToolUrl, proxySettings)}
                               aria-label={secondaryTargetLabel}
                               rel="noreferrer"
                               target="_blank"
@@ -13400,7 +13739,7 @@ function AdminLinkCheckPanel({
                           {result.url ? (
                             <a
                               className="link-check-open-link"
-                              href={result.url}
+                              href={proxifyUrl(result.url, proxySettings)}
                               aria-label={targetLabel}
                               rel="noreferrer"
                               target="_blank"

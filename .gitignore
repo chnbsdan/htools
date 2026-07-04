@@ -11,6 +11,7 @@ wrangler.local.toml
 # Local agent workspace
 .agents/
 .logs/
+tmp/
 
 # Local private docs
 CHANGELOG.md

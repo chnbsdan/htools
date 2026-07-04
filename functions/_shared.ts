@@ -217,6 +217,7 @@ export type AdminPasswordSettings = {
 export type ProxySettings = {
   enabled: boolean;
   baseUrl: string;
+  mode: "prefix" | "edgeone-proxy" | "edgeone-advanced";
 };
 
 export type FooterLink = {
@@ -2076,7 +2077,8 @@ export async function getProxySettings(env: Env): Promise<ProxySettings> {
   if (!row) {
     return {
       enabled: false,
-      baseUrl: ""
+      baseUrl: "",
+      mode: "prefix"
     };
   }
 
@@ -2087,19 +2089,21 @@ export async function getProxySettings(env: Env): Promise<ProxySettings> {
       baseUrl:
         typeof parsed.baseUrl === "string"
           ? normalizeProxyBaseUrl(parsed.baseUrl)
-          : ""
+          : "",
+      mode: normalizeProxyMode(parsed.mode)
     };
   } catch {
     return {
       enabled: false,
-      baseUrl: ""
+      baseUrl: "",
+      mode: "prefix"
     };
   }
 }
 
 export async function saveProxySettings(
   env: Env,
-  payload: { enabled?: unknown; baseUrl?: unknown }
+  payload: { enabled?: unknown; baseUrl?: unknown; mode?: unknown }
 ) {
   const db = await getDatabase(env);
   const enabled = payload.enabled === true;
@@ -2114,7 +2118,8 @@ export async function saveProxySettings(
 
   const settings = {
     enabled,
-    baseUrl
+    baseUrl,
+    mode: normalizeProxyMode(payload.mode)
   } satisfies ProxySettings;
 
   await db.prepare(
@@ -2191,7 +2196,22 @@ export function proxifyUrl(value: string, settings: ProxySettings) {
     return targetUrl;
   }
 
-  return `${settings.baseUrl}${targetUrl}`;
+  const baseUrl = normalizeProxyBaseUrl(settings.baseUrl);
+  const mode = normalizeProxyMode(settings.mode);
+
+  if (!baseUrl) {
+    return targetUrl;
+  }
+
+  if (mode === "edgeone-proxy") {
+    return createProxyQueryUrl(baseUrl, "proxy", targetUrl);
+  }
+
+  if (mode === "edgeone-advanced") {
+    return createProxyQueryUrl(baseUrl, "advanced-proxy", targetUrl);
+  }
+
+  return `${baseUrl}${targetUrl}`;
 }
 
 function normalizeSiteSettings(value: {
@@ -2672,6 +2692,25 @@ function normalizeProxyBaseUrl(value: string) {
   } catch {
     return "";
   }
+}
+
+function normalizeProxyMode(value: unknown): ProxySettings["mode"] {
+  return value === "edgeone-proxy" ||
+    value === "edgeone-advanced" ||
+    value === "prefix"
+    ? value
+    : "prefix";
+}
+
+function createProxyQueryUrl(baseUrl: string, route: string, targetUrl: string) {
+  const url = new URL(baseUrl);
+  const basePath = url.pathname.replace(/\/?$/, "/");
+  url.pathname = `${basePath}${route}`.replace(/\/{2,}/g, "/");
+  url.search = "";
+  url.searchParams.set("url", targetUrl);
+  url.hash = "";
+
+  return url.toString();
 }
 
 function normalizeHttpUrl(value: string) {
