@@ -717,19 +717,47 @@ export async function saveGitHubSettings(
   return data.settings;
 }
 
-export async function loadGitHubToolMetadata(
+const pendingGitHubMetadataRequests = new Map<
+  string,
+  Promise<GitHubToolMetadata>
+>();
+
+export function loadGitHubToolMetadata(
   url: string,
-  token: string
+  token: string,
+  options: { forceRefresh?: boolean } = {}
 ): Promise<GitHubToolMetadata> {
-  const searchParams = new URLSearchParams({ url });
-  const response = await fetch(`/api/admin/github-metadata?${searchParams}`, {
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`
+  const requestKey = url.trim().toLowerCase();
+  const pendingRequest = pendingGitHubMetadataRequests.get(requestKey);
+  if (pendingRequest) {
+    return pendingRequest;
+  }
+
+  const request = (async () => {
+    const searchParams = new URLSearchParams({ url });
+    if (options.forceRefresh) {
+      searchParams.set("refresh", "1");
     }
-  });
-  const data = await readJson<GitHubToolMetadataResponse>(response);
-  return data.metadata;
+
+    const response = await fetch(`/api/admin/github-metadata?${searchParams}`, {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`
+      }
+    });
+    const data = await readJson<GitHubToolMetadataResponse>(response);
+    return data.metadata;
+  })();
+
+  pendingGitHubMetadataRequests.set(requestKey, request);
+  const clearPendingRequest = () => {
+    if (pendingGitHubMetadataRequests.get(requestKey) === request) {
+      pendingGitHubMetadataRequests.delete(requestKey);
+    }
+  };
+  void request.then(clearPendingRequest, clearPendingRequest);
+
+  return request;
 }
 
 export async function checkLinks(

@@ -7509,7 +7509,7 @@ function AdminApp({
       return;
     }
 
-    if (!force && lastGitHubMetadataUrl.current === normalizedUrl) {
+    if (!force && lastGitHubMetadataUrl.current === repoPath) {
       return;
     }
 
@@ -7520,13 +7520,15 @@ function AdminApp({
     setGithubMetadataPreviewFailed(false);
 
     try {
-      const metadata = await loadGitHubToolMetadata(normalizedUrl, token);
+      const metadata = await loadGitHubToolMetadata(normalizedUrl, token, {
+        forceRefresh: force
+      });
 
       if (githubMetadataRequestId.current !== requestId) {
         return;
       }
 
-      lastGitHubMetadataUrl.current = normalizedUrl;
+      lastGitHubMetadataUrl.current = repoPath;
       const previousMetadata = lastAppliedGitHubMetadata.current?.metadata ?? null;
       setForm((current) => {
         const currentUrl = normalizeHttpUrlInput(current.url);
@@ -8510,7 +8512,7 @@ function AdminApp({
     setEditingTool(tool);
     setForm(nextForm);
     setToolTagText(formatTagInputText(nextForm.tags));
-    lastGitHubMetadataUrl.current = normalizeHttpUrlInput(tool.url);
+    lastGitHubMetadataUrl.current = getGitHubRepoPath(tool.url);
     lastAppliedGitHubMetadata.current = null;
     githubMetadataRequestId.current += 1;
     setIsGitHubMetadataLoading(false);

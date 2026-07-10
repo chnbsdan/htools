@@ -1,6 +1,7 @@
 export type Env = {
   DB: D1Database;
   ADMIN_PASSWORD?: string;
+  GITHUB_TOKEN?: string;
 };
 
 export type GitHubSettings = {
@@ -68,6 +69,12 @@ type GitHubRepoResponse = {
   stargazers_count?: number;
   forks_count?: number;
   updated_at?: string;
+};
+
+type GitHubMetadataCacheEntry = {
+  metadata: GitHubToolMetadata;
+  etag: string;
+  cachedAt: number;
 };
 
 export type ToolRow = {
@@ -2569,7 +2576,17 @@ function createGitHubOpenGraphImageUrl(url: string) {
   return repoPath ? `https://opengraph.githubassets.com/htools/${repoPath}` : "";
 }
 
-export async function loadGitHubToolMetadata(url: string): Promise<GitHubToolMetadata> {
+const GITHUB_METADATA_FRESH_TTL_MS = 60 * 60 * 1000;
+const GITHUB_METADATA_CACHE_TTL_SECONDS = 24 * 60 * 60;
+
+export async function loadGitHubToolMetadata(
+  url: string,
+  options: {
+    token?: string;
+    forceRefresh?: boolean;
+    cacheBaseUrl?: string;
+  } = {}
+): Promise<GitHubToolMetadata> {
   const repoPath = getGitHubRepoPath(url);
 
   if (!repoPath) {
@@ -2577,15 +2594,48 @@ export async function loadGitHubToolMetadata(url: string): Promise<GitHubToolMet
   }
 
   const [owner, repo] = repoPath.split("/");
-  const response = await fetch(
-    `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
-    {
-      headers: {
-        Accept: "application/vnd.github+json",
-        "User-Agent": "HTools GitHub Metadata"
-      }
-    }
-  );
+  const apiUrl = `https://api.github.com/repos/${encodeURIComponent(owner.toLowerCase())}/${encodeURIComponent(repo.toLowerCase())}`;
+  const cacheUrl = new URL(options.cacheBaseUrl || apiUrl);
+  cacheUrl.pathname = `/__htools-cache/github-metadata/${encodeURIComponent(owner.toLowerCase())}/${encodeURIComponent(repo.toLowerCase())}`;
+  cacheUrl.search = "";
+  cacheUrl.hash = "";
+  const cacheKey = new Request(cacheUrl.toString(), { method: "GET" });
+  const cachedEntry = await readGitHubMetadataCache(cacheKey);
+
+  if (
+    cachedEntry &&
+    !options.forceRefresh &&
+    Date.now() - cachedEntry.cachedAt < GITHUB_METADATA_FRESH_TTL_MS
+  ) {
+    return cachedEntry.metadata;
+  }
+
+  const headers = new Headers({
+    Accept: "application/vnd.github+json",
+    "User-Agent": "HTools GitHub Metadata",
+    "X-GitHub-Api-Version": "2022-11-28"
+  });
+  const token = options.token?.trim();
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  if (cachedEntry?.etag) {
+    headers.set("If-None-Match", cachedEntry.etag);
+  }
+
+  const response = await fetch(apiUrl, { headers });
+
+  if (response.status === 304 && cachedEntry) {
+    const refreshedEntry = {
+      ...cachedEntry,
+      etag: response.headers.get("etag") || cachedEntry.etag,
+      cachedAt: Date.now()
+    };
+    await writeGitHubMetadataCache(cacheKey, refreshedEntry);
+    return refreshedEntry.metadata;
+  }
 
   if (response.status === 404) {
     throw new Error("GitHub repository not found.");
@@ -2612,7 +2662,7 @@ export async function loadGitHubToolMetadata(url: string): Promise<GitHubToolMet
   const license = normalizeGitHubLicense(repoData.license);
   const topics = normalizeGitHubTopics(repoData.topics);
 
-  return {
+  const metadata = {
     owner: repoOwner,
     repo: repoName,
     fullName,
@@ -2631,6 +2681,75 @@ export async function loadGitHubToolMetadata(url: string): Promise<GitHubToolMet
     topics,
     updatedAt: readOptionalString(repoData.updated_at)
   };
+
+  await writeGitHubMetadataCache(cacheKey, {
+    metadata,
+    etag: response.headers.get("etag") ?? "",
+    cachedAt: Date.now()
+  });
+
+  return metadata;
+}
+
+async function readGitHubMetadataCache(
+  cacheKey: Request
+): Promise<GitHubMetadataCacheEntry | null> {
+  try {
+    const cache = getDefaultCloudflareCache();
+    if (!cache) {
+      return null;
+    }
+
+    const response = await cache.match(cacheKey);
+    if (!response) {
+      return null;
+    }
+
+    const entry = (await response.json()) as Partial<GitHubMetadataCacheEntry>;
+    if (
+      !entry.metadata ||
+      typeof entry.cachedAt !== "number" ||
+      typeof entry.etag !== "string"
+    ) {
+      return null;
+    }
+
+    return entry as GitHubMetadataCacheEntry;
+  } catch {
+    return null;
+  }
+}
+
+async function writeGitHubMetadataCache(
+  cacheKey: Request,
+  entry: GitHubMetadataCacheEntry
+) {
+  try {
+    const cache = getDefaultCloudflareCache();
+    if (!cache) {
+      return;
+    }
+
+    await cache.put(
+      cacheKey,
+      new Response(JSON.stringify(entry), {
+        headers: {
+          "Cache-Control": `public, max-age=${GITHUB_METADATA_CACHE_TTL_SECONDS}`,
+          "Content-Type": "application/json; charset=utf-8"
+        }
+      })
+    );
+  } catch {
+    // Metadata fetching should still work when Cache API is unavailable locally.
+  }
+}
+
+function getDefaultCloudflareCache() {
+  try {
+    return (caches as CacheStorage & { default?: Cache }).default ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export function getGitHubRepoPath(url: string) {

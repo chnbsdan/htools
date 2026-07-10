@@ -41,13 +41,16 @@ Variable name: DB
 D1 database: select the database you just created
 ```
 
-6. Add the admin password as a Pages environment variable:
+6. Add the admin password as a Pages environment variable, and configure the GitHub repository metadata token as a Secret:
 
 ```txt
 ADMIN_PASSWORD=your-admin-password
+GITHUB_TOKEN=your-read-only-github-token
 ```
 
 The admin password only has to be non-empty. Letters, numbers, symbols, and Unicode characters are accepted, and the project does not enforce a minimum or maximum length; use a unique password of at least 12 characters.
+
+`GITHUB_TOKEN` is used when the admin dashboard reads public GitHub repository metadata while adding or editing tools. Authenticated requests raise the GitHub API limit, while caching and ETag revalidation reduce repeated requests. Use a read-only token from a stable account and do not grant repository write, delete, or administration permissions. This variable is separate from the GitHub OAuth user token used by public submissions. Public metadata still works without it, but uses the lower unauthenticated API limit.
 
 7. Redeploy the Pages project.
 8. Open `/admin` and sign in.
@@ -68,7 +71,7 @@ copy .dev.vars.example .dev.vars
 copy wrangler.local.example.toml wrangler.local.toml
 ```
 
-Fill `account_id`, `database_name`, and `database_id` in `wrangler.local.toml`, then start local Pages Functions:
+Set the local `ADMIN_PASSWORD` and read-only `GITHUB_TOKEN` in `.dev.vars`, then fill `account_id`, `database_name`, and `database_id` in `wrangler.local.toml` before starting Pages Functions. `.dev.vars` is ignored by Git; never put a real token in `.dev.vars.example` or commit it:
 
 ```bash
 npm run pages:dev
@@ -110,11 +113,11 @@ The default tool source is only an online subscription source. It is not written
 
 ## Security Recommendations
 
-- Configure the admin password and GitHub OAuth Client Secret as Cloudflare Pages environment variables. Do not put secrets in public code.
+- Configure the admin password, `GITHUB_TOKEN`, and GitHub OAuth Client Secret as Cloudflare Pages Secrets. Do not put secrets in public code.
 - Use a long, unique admin password and update it periodically.
 - Before enabling GitHub submissions, make sure the target repository allows issue creation.
 - Export a full backup in the admin dashboard before major updates, site migrations, or bulk imports.
 
 ## Version
 
-Current version: `HTools v1.0.9`
+Current version: `HTools v1.0.10`

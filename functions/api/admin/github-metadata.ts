@@ -16,7 +16,12 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 
   try {
     const metadata = await loadGitHubToolMetadata(
-      requestUrl.searchParams.get("url") ?? ""
+      requestUrl.searchParams.get("url") ?? "",
+      {
+        token: env.GITHUB_TOKEN,
+        forceRefresh: requestUrl.searchParams.get("refresh") === "1",
+        cacheBaseUrl: request.url
+      }
     );
     return json({ metadata });
   } catch (error) {
