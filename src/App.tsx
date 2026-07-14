@@ -358,7 +358,7 @@ const submissionCategories = [
 
 const CATEGORY_PAGE_SIZE = 16;
 const DEFAULT_SOURCE_URL =
-  "https://raw.githubusercontent.com/shaoyouvip/htools/refs/heads/main/public/htools.json";
+  "https://raw.githubusercontent.com/chnbsdan/htools/refs/heads/main/public/htools.json";
 const SOURCE_PREVIEW_ERROR_LIMIT = 5;
 const NAV_BURST_PARTICLE_COUNT = 12;
 const NAV_BURST_NAVIGATION_DELAY_MS = 220;
@@ -384,11 +384,11 @@ const SITE_ICON_EXTENSION_TYPES: Record<string, string> = {
 };
 const DEFAULT_ABOUT_CONTENT = `# 关于我
 
-大家好，我是**周润发**（网名），也是 [blog.zrf.me](https://blog.zrf.me/) 的博主。
+大家好，我是**小史先生**（网名），也是 [aoso.hangdn.com](https://aoso.hangdn.com/) 的博主。
 
-一直以来我就一个爱好：作为一枚小白，致力于折腾并 **收录各种开源、好用的互联网项目** 。分享实用资源嘛，好用就完事了！
+作为一枚编程技术的小白：一直以来因爱好广泛，致力于折腾并 **收录各种开源、好用的互联网项目** 。分享实用资源，简洁好用就好！
 
-但在写博客的过程中，我遇到个痛点：网上好玩的工具实在太多了，但并不是每个项目都适合正儿八经地水一篇长博文。有些小工具明明极其优秀，却因为体量小，找不到合适的渠道去展示和分享，最后只能默默躺在我的收藏夹里吃灰。
+但在编撰博文的过程中，经常会遇到：因互联网上好玩的工具实在太多了，但并不是每个项目都适合正儿八经地水一篇长博文。有些小工具明明极其优秀，却因为体量小，找不到合适的渠道去展示和分享，最后只能默默躺在我的收藏夹里吃灰。
 
 ### 一直想做这样一个工具导航站，所以，**HTools** 诞生了。
 
@@ -413,18 +413,18 @@ const DEFAULT_ABOUT_CONTENT = `# 关于我
 
 当然，这些是我感兴趣的内容，如果你也发现了好用的工具和感兴趣的内容，欢迎通过网站提交给我。只要它确实有用、介绍清楚、链接可靠，我都会认真看看。这个项目本身也会继续更新，目标很简单：把零散的好项目收拾得更清楚，让需要的人更快找到。
 
-**如果 HTools 对你有帮助，也欢迎给项目点个 Star：[shaoyouvip/htools](https://github.com/shaoyouvip/htools)**
+**如果 HTools 对你有帮助，也欢迎给项目点个 Star：[chnbsdan/htools](https://github.com/chnbsdan/htools)**
 
 慢慢收集，慢慢打磨。能帮到一个人，就不算白折腾。
 
 ::links
 ## 产品链接
 
-- [作者](https://github.com/shaoyouvip/)
-- [主页](https://zrf.me/)
-- [博客](https://blog.zrf.me/)
-- [Github](https://github.com/shaoyouvip/htools)
-- [Telegram](https://d.zrf.me/tgq)
+- [作者](https://github.com/chnbsdan/)
+- [主页](https://aoso.hangdn.com/)
+- [博客](https://aoso.hangdn.com/)
+- [Github](https://github.com/chnbsdan/htools)
+- [Telegram](https://t.me/chnbsdan)
 ::`;
 const LEGACY_DEFAULT_FOOTER_DESCRIPTION =
   "\u63a2\u7d22\u7cbe\u9009\u5de5\u5177\u548c\u8d44\u6e90\uff0c\u52a0\u901f\u60a8\u7684\u72ec\u7acb\u5f00\u53d1\u4e4b\u65c5";
@@ -434,9 +434,9 @@ const TEMP_DEFAULT_FOOTER_DESCRIPTION =
   "\u6574\u7406\u5f00\u6e90\u9879\u76ee\u4e0e\u5b9e\u7528\u5de5\u5177";
 const DEFAULT_FOOTER_DESCRIPTION =
   "\u81f4\u529b\u4e8e\u6536\u5f55\u5404\u79cd\u5f00\u6e90\u3001\u597d\u7528\u7684\u4e92\u8054\u7f51\u9879\u76ee";
-const FOOTER_PROJECT_URL = "https://github.com/shaoyouvip/htools";
+const FOOTER_PROJECT_URL = "https://github.com/chnbsdan/htools";
 const LEGACY_DEFAULT_SPONSOR_URL = "https://www.buymeacoffee.com/";
-const LEGACY_DEFAULT_AUTHOR_URL = "https://zrf.me/";
+const LEGACY_DEFAULT_AUTHOR_URL = "https://aoso.hangdn.com/";
 const LEGACY_DEFAULT_FOOTER_MORE_TITLE = "\u66f4\u591a\u7684";
 const DEFAULT_SPONSOR_URL = "https://example.com";
 const DEFAULT_FOOTER_SETTINGS: FooterSettings = {
@@ -447,9 +447,9 @@ const DEFAULT_FOOTER_SETTINGS: FooterSettings = {
   sponsorLabel: "Buy me a coffee",
   sponsorUrl: DEFAULT_SPONSOR_URL,
   socialLinks: [
-    { label: "GitHub", href: "https://github.com/shaoyouvip/htools" },
-    { label: "Email", href: "mailto:admin@zrf.me" },
-    { label: "Telegram", href: "https://d.zrf.me/tgq" }
+    { label: "GitHub", href: "https://github.com/chnbsdan/htools" },
+    { label: "Email", href: "mailto:chnbsdan@gmail.com" },
+    { label: "Telegram", href: "https://t.me/chnbsdan" }
   ],
   groups: [
     {
@@ -463,16 +463,16 @@ const DEFAULT_FOOTER_SETTINGS: FooterSettings = {
     {
       title: "\u652f\u6301",
       links: [
-        { label: "\u7535\u5b50\u90ae\u4ef6", href: "mailto:admin@zrf.me" },
-        { label: "GitHub", href: "https://github.com/shaoyouvip/htools" },
-        { label: "Telegram", href: "https://d.zrf.me/tgq" }
+        { label: "\u7535\u5b50\u90ae\u4ef6", href: "mailto:chnbsdan@gmail.com" },
+        { label: "GitHub", href: "https://github.com/chnbsdan/htools" },
+        { label: "Telegram", href: "https://t.me/chnbsdan" }
       ]
     },
     {
       title: "\u5176\u4ed6",
       links: [
-        { label: "\u4e3b\u9875", href: "https://zrf.me/" },
-        { label: "\u535a\u5ba2", href: "https://blog.zrf.me" }
+        { label: "\u4e3b\u9875", href: "https://aoso.hangdn.com/" },
+        { label: "\u535a\u5ba2", href: "https://aoso.hangdn.com" }
       ]
     },
     {
@@ -4638,10 +4638,10 @@ function AboutPage({
   const aboutContent = siteSettings.aboutContent?.trim() ?? "";
   const showDefaultAboutHero = siteSettingsLoaded && !aboutContent;
   const productLinks = [
-    { label: t.aboutPage.author, href: "https://zrf.me/" },
-    { label: t.aboutPage.official, href: "https://zrf.me/" },
-    { label: t.home.blog, href: "https://blog.zrf.me" },
-    { label: t.aboutPage.github, href: "https://github.com/shaoyouvip/htools" }
+    { label: t.aboutPage.author, href: "https://aoso.hangdn.com/" },
+    { label: t.aboutPage.official, href: "https://aoso.hangdn.com/" },
+    { label: t.home.blog, href: "https://aoso.hangdn.com" },
+    { label: t.aboutPage.github, href: "https://github.com/chnbsdan/htools" }
   ];
 
   return (
