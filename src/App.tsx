@@ -578,16 +578,16 @@ function getLocalizedDefaultFooterGroups(t: Messages): FooterLinkGroup[] {
     {
       title: t.home.footerSupport,
       links: [
-        { label: t.home.email, href: "mailto:admin@zrf.me" },
+        { label: t.home.email, href: "mailto:chnbsdan@gmail.com" },
         { label: "GitHub", href: FOOTER_PROJECT_URL },
-        { label: "Telegram", href: "https://d.zrf.me/tgq" }
+        { label: "Telegram", href: "https://t.me/chnbsdan" }
       ]
     },
     {
       title: t.home.footerOther,
       links: [
-        { label: t.home.countdown, href: "https://zrf.me/" },
-        { label: t.home.blog, href: "https://blog.zrf.me" }
+        { label: t.home.countdown, href: "https://aoso.hangdn.com/" },
+        { label: t.home.blog, href: "https://aoso.hangdn.com" }
       ]
     },
     {
@@ -718,17 +718,17 @@ function normalizeFooterNavigationLink(link: FooterLink): FooterLink {
 }
 
 function normalizeLegacyDefaultFooterLink(link: FooterLink): FooterLink {
-  if (link.href.toLowerCase() === "mailto:hello@zrf.me") {
+  if (link.href.toLowerCase() === "mailto:chnbsdan@gmail.com") {
     return {
       ...link,
-      href: "mailto:admin@zrf.me"
+      href: "mailto:chnbsdan@gmail.com"
     };
   }
 
   if (/^https:\/\/t\.me\/?$/i.test(link.href)) {
     return {
       ...link,
-      href: "https://d.zrf.me/tgq"
+      href: "https://t.me/chnbsdan"
     };
   }
 
@@ -1572,7 +1572,7 @@ function getContentFlowText(locale: Locale) {
       sourceTitleLabel: "标题",
       sourceTitlePlaceholder: "留空则使用订阅源标题",
       sourceUrlLabel: "RSS / Atom 地址",
-      sourceUrlPlaceholder: "https://blog.zrf.me/atom.xml",
+      sourceUrlPlaceholder: "https://aoso.hangdn.com/rss.xml",
       categoryLabel: "分类",
       categoryPlaceholder: "选择或新建分类",
       categoryEmptyLabel: "选择分类",
@@ -1635,7 +1635,7 @@ function getContentFlowText(locale: Locale) {
     sourceTitleLabel: "Title",
     sourceTitlePlaceholder: "Leave blank to use the feed title",
     sourceUrlLabel: "RSS / Atom URL",
-    sourceUrlPlaceholder: "https://blog.zrf.me/atom.xml",
+    sourceUrlPlaceholder: "https://aoso.hangdn.com/rss.xml",
     categoryLabel: "Category",
     categoryPlaceholder: "Select or create a category",
     categoryEmptyLabel: "Select category",
