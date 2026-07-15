@@ -40,6 +40,36 @@
   </head>
   <body>
     <div id="root"></div>
+
+    <!-- ===== 在这里添加 ===== -->
+  <script src="https://cdn.jsdelivr.net/npm/twikoo@1.7.14/dist/twikoo.min.js"></script>
+  <script>
+    function initTwikoo() {
+      if (typeof twikoo !== 'undefined' && document.getElementById('tcomment')) {
+        twikoo.init({
+          el: '#tcomment',
+          envId: 'https://twikoo.hangdn.com'
+        });
+        console.log('✅ Twikoo 初始化成功');
+        return true;
+      }
+      return false;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      if (!initTwikoo()) {
+        var retry = 0;
+        var timer = setInterval(function() {
+          retry++;
+          if (initTwikoo() || retry > 10) {
+            clearInterval(timer);
+          }
+        }, 300);
+      }
+    });
+  </script>
+  <!-- ===== 添加结束 ===== -->
+    
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
