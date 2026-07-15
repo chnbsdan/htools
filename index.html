@@ -40,70 +40,64 @@
   </head>
   <body>
     <div id="root"></div>
-
-    <!-- Twikoo 评论系统 -->
-<script src="https://cdn.jsdelivr.net/npm/twikoo@1.7.14/dist/twikoo.min.js"></script>
-<script>
-  // 直接在页面上显示调试信息
-  function showDebug(msg) {
-    var el = document.getElementById('twikoo-debug');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'twikoo-debug';
-      el.style.cssText = 'position:fixed;bottom:10px;left:10px;background:#000;color:#0f0;padding:10px;font-size:12px;z-index:99999;max-width:90%;font-family:monospace;border-radius:4px;';
-      document.body.appendChild(el);
-    }
-    el.innerHTML = msg + '<br>' + el.innerHTML;
-    console.log(msg);
-  }
-
-  showDebug('1. Twikoo 脚本开始执行');
-
-  // 检测 twikoo 是否加载
-  function checkTwikoo() {
-    showDebug('2. 检查 twikoo 对象: ' + (typeof twikoo));
-    showDebug('3. 检查 tcomment 容器: ' + document.getElementById('tcomment'));
     
-    if (typeof twikoo !== 'undefined' && document.getElementById('tcomment')) {
-      showDebug('4. ✅ 条件满足，开始初始化');
-      try {
-        twikoo.init({
-          el: '#tcomment',
-          envId: 'https://twikoo.hangdn.com'
-        });
-        showDebug('5. ✅ 初始化完成！');
-      } catch(e) {
-        showDebug('5. ❌ 初始化出错: ' + e.message);
-      }
-      return true;
-    }
-    return false;
-  }
-
-  // DOM 加载完成后执行
-  document.addEventListener('DOMContentLoaded', function() {
-    showDebug('6. DOMContentLoaded 触发');
-    if (!checkTwikoo()) {
-      showDebug('7. 条件不满足，启动重试...');
-      var count = 0;
-      var timer = setInterval(function() {
-        count++;
-        showDebug('8. 重试第 ' + count + ' 次');
-        if (checkTwikoo() || count > 15) {
-          clearInterval(timer);
-          if (count > 15) showDebug('9. ⚠️ 重试次数用尽');
-        }
-      }, 500);
-    }
-  });
-
-  // 如果 twikoo 在 DOMContentLoaded 之后才加载，直接检测
-  setTimeout(function() {
-    showDebug('10. 延迟检测 (2秒后)');
-    checkTwikoo();
-  }, 2000);
-</script>
-    
+    <!-- React 入口必须先加载 -->
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Twikoo 放在最后，等 React 渲染完成 -->
+    <script src="https://cdn.jsdelivr.net/npm/twikoo@1.7.14/dist/twikoo.min.js"></script>
+    <script>
+      // 直接在页面上显示调试信息
+      function showDebug(msg) {
+        var el = document.getElementById('twikoo-debug');
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'twikoo-debug';
+          el.style.cssText = 'position:fixed;bottom:10px;left:10px;background:#000;color:#0f0;padding:10px;font-size:12px;z-index:99999;max-width:90%;font-family:monospace;border-radius:4px;';
+          document.body.appendChild(el);
+        }
+        el.innerHTML = msg + '<br>' + el.innerHTML;
+        console.log(msg);
+      }
+
+      showDebug('1. Twikoo 脚本开始执行');
+
+      function checkTwikoo() {
+        showDebug('2. 检查 twikoo 对象: ' + (typeof twikoo));
+        showDebug('3. 检查 tcomment 容器: ' + document.getElementById('tcomment'));
+        
+        if (typeof twikoo !== 'undefined' && document.getElementById('tcomment')) {
+          showDebug('4. ✅ 条件满足，开始初始化');
+          try {
+            twikoo.init({
+              el: '#tcomment',
+              envId: 'https://twikoo.hangdn.com'
+            });
+            showDebug('5. ✅ 初始化完成！');
+          } catch(e) {
+            showDebug('5. ❌ 初始化出错: ' + e.message);
+          }
+          return true;
+        }
+        return false;
+      }
+
+      // 等 React 渲染完成后再检测
+      function waitForReact() {
+        showDebug('6. 等待 React 渲染...');
+        var count = 0;
+        var timer = setInterval(function() {
+          count++;
+          showDebug('7. 检测第 ' + count + ' 次');
+          if (checkTwikoo() || count > 30) {
+            clearInterval(timer);
+            if (count > 30) showDebug('8. ⚠️ 超时，请检查 AboutPage 是否渲染了 #tcomment');
+          }
+        }, 500);
+      }
+
+      // 延迟 1 秒等 React 渲染
+      setTimeout(waitForReact, 1000);
+    </script>
   </body>
 </html>
