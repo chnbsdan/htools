@@ -4734,6 +4734,21 @@ function AboutPage({
               </SkeletonVisibility>
             )}
           </article>
+
+          {/* ===== 评论区域（永远渲染，不依赖任何条件） ===== */}
+          <div 
+            id="twikoo-comment-section"
+            style={{ 
+              marginTop: '3rem', 
+              borderTop: '1px solid var(--border)', 
+              paddingTop: '2rem' 
+            }}
+          >
+            <h3 style={{ marginBottom: '1rem' }}>💬 留言交流</h3>
+            <div id="tcomment"></div>
+          </div>
+          {/* ===== 评论区域结束 ===== */}
+
         </section>
       </main>
 
