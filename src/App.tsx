@@ -4609,6 +4609,9 @@ function PublicPageHero({
   );
 }
 
+// 在文件顶部添加全局声明
+declare const twikoo: any;
+
 function AboutPage({
   locale,
   onLocaleChange,
@@ -4636,6 +4639,35 @@ function AboutPage({
   const proxySettings = useProxySettings();
   const showSettingsSkeleton = useLoadingSkeleton(!siteSettingsLoaded);
   const aboutContent = siteSettings.aboutContent?.trim() ?? "";
+
+    // ===== 新增：加载 Twikoo =====
+  useEffect(() => {
+    if (document.getElementById('twikoo-script')) {
+      if (typeof twikoo !== 'undefined') {
+        twikoo.init({
+          el: '#tcomment',
+          envId: 'https://twikoo.hangdn.com',
+        });
+      }
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = 'twikoo-script';
+    script.src = 'https://cdn.jsdelivr.net/npm/twikoo@1.7.14/dist/twikoo.min.js';
+    script.async = true;
+    script.onload = () => {
+      if (typeof twikoo !== 'undefined') {
+        twikoo.init({
+          el: '#tcomment',
+          envId: 'https://twikoo.hangdn.com',
+        });
+      }
+    };
+    document.body.appendChild(script);
+  }, []);
+  // ===== 新增结束 =====
+  
   const showDefaultAboutHero = siteSettingsLoaded && !aboutContent;
   const productLinks = [
     { label: t.aboutPage.author, href: "https://aoso.hangdn.com/" },
@@ -4841,6 +4873,13 @@ function LegalPage({
               </SkeletonVisibility>
             )}
           </article>
+           {/* ===== 在这后面添加评论区域 ===== */}
+<div className="about-comment-section" style={{ marginTop: '3rem', borderTop: '1px solid var(--border)', paddingTop: '2rem' }}>
+  <h3 style={{ marginBottom: '1rem' }}>💬 留言交流</h3>
+  <div id="tcomment"></div>
+</div>
+{/* ===== 评论区域结束 ===== */}
+          
         </section>
       </main>
 
